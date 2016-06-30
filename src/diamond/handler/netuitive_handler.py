@@ -24,6 +24,8 @@ import json
 import urllib2
 from diamond.util import get_diamond_version
 
+from diamond.utils.config import load_config as load_server_config
+
 try:
     import psutil
 except ImportError:
@@ -116,6 +118,7 @@ class NetuitiveHandler(Handler):
             self._add_docker_meta()
             self._add_config_tags()
             self._add_config_relations()
+            self._add_collectors()
 
             self.flush_time = 0
 
@@ -295,6 +298,31 @@ class NetuitiveHandler(Handler):
             if type(relations) is str:
                 self.element.add_relation(relations.strip())
 
+    def _add_collectors(self):
+        try:
+
+            cf = "/opt/netuitive-agent/conf/netuitive-agent.conf"
+
+            enabled_collectors = []
+
+            if os.path.isfile(cf):
+                serverconf = load_server_config(cf)
+
+            c = serverconf['collectors']
+
+            for k, v in c.iteritems():
+                if v.get('enabled', False):
+                    logging.debug(k + ' is enabled')
+                    enabled_collectors.append(k.replace('Collector', ''))
+
+            collectors = ', '.join(enabled_collectors)
+
+            self.element.add_tag('n.collectors', collectors)
+
+        except Exception as e:
+            logging.error(e)
+            pass
+
     def process(self, metric):
         metricId = metric.getCollectorPath() + '.' + metric.getMetricPath()
 
@@ -312,7 +340,7 @@ class NetuitiveHandler(Handler):
         logging.debug('sending data')
 
         if self.element.id is None:
-            logging.info('element id not set. nothing to post.')
+            logging.warn('element id not set. nothing to post.')
             return
 
         try:
