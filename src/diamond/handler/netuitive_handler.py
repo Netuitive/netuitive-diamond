@@ -315,6 +315,7 @@ class NetuitiveHandler(Handler):
                     logging.debug(k + ' is enabled')
                     enabled_collectors.append(k.replace('Collector', ''))
 
+            enabled_collectors.sort()
             collectors = ', '.join(enabled_collectors)
 
             self.element.add_tag('n.collectors', collectors)
