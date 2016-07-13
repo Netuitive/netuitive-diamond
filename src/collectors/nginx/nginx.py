@@ -25,6 +25,9 @@ following content:
   }
 </pre>
 
+Netuitive Change History
+    2016/07/12 DVG - Removed the "requests per connection" metric. See comments inline for more detail.
+
 """
 
 import urllib2
@@ -88,12 +91,28 @@ class NginxCollector(diamond.collector.Collector):
                         int(activeConnectionsRE.match(l).group('conn')))
                 elif totalConnectionsRE.match(l):
                     m = totalConnectionsRE.match(l)
-                    req_per_conn = float(m.group('req')) / \
-                        float(m.group('acc'))
+
+                    ###
+                    #
+                    # 2016/07/12 DVG - Removing the "requests per connection" metric.
+                    # Because this metric was being computed from COUNTER metrics, it
+                    # represented the average requests per connection since the beginning
+                    # of time, which is not particularly useful.
+                    #
+                    # req_per_conn = float(m.group('req')) / \
+                    #    float(m.group('acc'))
+                    #
+                    ###
                     self.publish_counter('conn_accepted', int(m.group('conn')))
                     self.publish_counter('conn_handled', int(m.group('acc')))
                     self.publish_counter('req_handled', int(m.group('req')))
-                    self.publish_gauge('req_per_conn', float(req_per_conn))
+                    ###
+                    # 
+                    # 2016/07/12 DVG - see comment above
+                    #
+                    # self.publish_gauge('req_per_conn', float(req_per_conn))
+                    #
+                    ###
                 elif connectionStatusRE.match(l):
                     m = connectionStatusRE.match(l)
                     self.publish_gauge('act_reads', int(m.group('reading')))
