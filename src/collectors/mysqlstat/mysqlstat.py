@@ -26,6 +26,10 @@ GRANT PROCESS ON *.* TO 'user'@'hostname' IDENTIFIED BY
 
  * MySQLdb
 
+
+Netuitive Change History
+    2016/07/13 DVG - Send COUNTERS as COUNTERS, rather then converting them to rates and sending as GAUGUES.
+
 """
 
 import diamond.collector
@@ -426,15 +430,32 @@ class MySQLCollector(diamond.collector.Collector):
                 if type(metric_value) is not float:
                     continue
 
+                ###
+                #
+                # 20160713 DVG - This next block of code has been modified to not compute the
+                # differential for COUNTER metrics and not to turn them into RATES.  Instead,
+                # we will publish them as COUNTERS.
+                #
+                ###
+
+                # Default the metric type to GAUGE
+                metric_type = "GAUGE"
+
                 if metric_name not in self._GAUGE_KEYS:
-                    metric_value = self.derivative(nickname + metric_name,
-                                                   metric_value)
+                    # If it's not a GAUGE, assume it's a COUNTER
+                    metric_type = "COUNTER"
+
+                    # Do not compute differential; do not convert to a rate.
+                    # metric_value = self.derivative(nickname + metric_name, metric_value)
+
                 if key == 'status':
                     if (('publish' not in self.config or
                          metric_name in self.config['publish'])):
-                        self.publish(nickname + metric_name, metric_value)
+                        # Publish the metric with the appropriate metric type (COUNTER or GAUGE)
+                        self.publish(nickname + metric_name, metric_value, metric_type=metric_type)
                 else:
-                    self.publish(nickname + metric_name, metric_value)
+                    # Publish the metric with the appropriate metric type (COUNTER or GAUGE)
+                    self.publish(nickname + metric_name, metric_value, metric_type=metric_type)
 
     def collect(self):
 
