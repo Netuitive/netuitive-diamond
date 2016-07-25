@@ -2,6 +2,11 @@
 
 """
 The Collector class is a base class for all metric collectors.
+
+Netuitive Change History
+    2016/07/11 DVG - Changed the publish_counter() function such that it actually does publish the 
+                     value as a COUNTER rather than a RATE. See comments inline for more detail.
+
 """
 
 import os
@@ -413,12 +418,24 @@ class Collector(object):
     def publish_counter(self, name, value, precision=0, max_value=0,
                         time_delta=True, interval=None, allow_negative=False,
                         instance=None):
-        raw_value = value
-        value = self.derivative(name, value, max_value=max_value,
-                                time_delta=time_delta, interval=interval,
-                                allow_negative=allow_negative,
-                                instance=instance)
-        return self.publish(name, value, raw_value=raw_value,
+        
+        ###
+        #
+        # 2016/07/11 DVG - The original version of this code was calling
+        # self.derivative(), which first computes the differential (the
+        # difference between the current value and the previous value),
+        # and then divides by the interval. The end result was that the 
+        # value published was a RATE and not actually a COUNTER, despite 
+        # the type being set to COUNTER.
+        #
+        ###
+
+        # raw_value = value
+        # value = self.derivative(name, value, max_value=max_value,
+        #                         time_delta=time_delta, interval=interval,
+        #                         allow_negative=allow_negative,
+        #                         instance=instance)
+        return self.publish(name, value, 
                             precision=precision, metric_type='COUNTER',
                             instance=instance)
 
