@@ -29,6 +29,7 @@ GRANT PROCESS ON *.* TO 'user'@'hostname' IDENTIFIED BY
 
 Netuitive Change History
     2016/07/13 DVG - Send COUNTERS as COUNTERS, rather then converting them to rates and sending as GAUGUES.
+    2016/08/12 DVG - Removed Threads_created from the list of GAUGES, since it is, in fact, a COUNTER.
 
 """
 
@@ -64,7 +65,7 @@ class MySQLCollector(diamond.collector.Collector):
         'Qcache_queries_in_cache', 'Qcache_total_blocks',
         'Seconds_Behind_Master',
         'Slave_open_temp_tables',
-        'Threads_cached', 'Threads_connected', 'Threads_created',
+        'Threads_cached', 'Threads_connected',
         'Threads_running',
         # innodb status non counter keys
         'Innodb_bp_created_per_sec',
