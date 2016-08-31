@@ -115,14 +115,14 @@ class Server(object):
         self.handler_queue = QueueHandler(
             config=self.config, queue=self.metric_queue, log=self.log)
 
-        process = multiprocessing.Process(
+        h_process = multiprocessing.Process(
             name="Handlers",
             target=handler_process,
             args=(self.handlers, self.metric_queue, self.log),
         )
 
-        process.daemon = True
-        process.start()
+        h_process.daemon = True
+        h_process.start()
 
         #######################################################################
         # Signals
@@ -135,6 +135,11 @@ class Server(object):
 
         while True:
             try:
+                if h_process.is_alive() is not True:
+                    signal.signal(signal.SIGQUIT, signal.SIG_DFL)
+                    raise Exception(
+                        'Handler appears to be dead! Exiting.')
+
                 active_children = multiprocessing.active_children()
                 running_processes = []
                 for process in active_children:
@@ -218,3 +223,6 @@ class Server(object):
                     self.config['server']['collectors_path'])
                 # restore SIGHUP handler
                 signal.signal(signal.SIGHUP, original_sighup_handler)
+
+            except Exception, e:
+                raise(e)

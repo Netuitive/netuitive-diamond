@@ -291,9 +291,21 @@ def main():
                 child.terminate()
             sys.exit(0)
 
+        def sigquit_handler(signum, frame):
+            log.info("Signal Received: %d" % (signum))
+            # Delete Pidfile
+            if not options.skip_pidfile and os.path.exists(options.pidfile):
+                os.remove(options.pidfile)
+                # Log
+                log.debug("Removed PID file: %s" % (options.pidfile))
+            for child in multiprocessing.active_children():
+                child.terminate()
+            sys.exit(3)
+
         # Set the signal handlers
         signal.signal(signal.SIGINT, sigint_handler)
         signal.signal(signal.SIGTERM, sigint_handler)
+        signal.signal(signal.SIGQUIT, sigquit_handler)
 
         server.run()
 
@@ -310,4 +322,12 @@ def main():
 if __name__ == "__main__":
     if setproctitle:
         setproctitle(os.path.basename(__file__))
-    main()
+
+    try:
+        main()
+
+    except Exception, e:
+        import traceback
+        log.error("Unhandled exception: %s" % str(e))
+        log.error("traceback: %s" % traceback.format_exc())
+        sys.exit(1)
