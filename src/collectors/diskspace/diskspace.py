@@ -71,7 +71,8 @@ class DiskSpaceCollector(diamond.collector.Collector):
             # exclude everything that includes the letter "m"
             'exclude_filters': ['^/export/home'],
             # simple
-            #    in simple mode, only diskspace.<disk>.byte_percentfree will be reported
+            # in simple mode, only diskspace.<disk>.byte_percentfree will be
+            # reported
             'simple': 'True',
             # Default numeric output
             'byte_unit': ['byte']
@@ -210,7 +211,11 @@ class DiskSpaceCollector(diamond.collector.Collector):
                     self.log.exception(e)
                     continue
 
-                block_size = data.f_bsize
+                # from github.com/python-diamond/Diamond/pull/503/
+                # Changed from data.f_bsize as f_frsize seems to be a more
+                # accurate representation of block size on multiple POSIX
+                # operating systems.
+                block_size = data.f_frsize
 
                 blocks_total = data.f_blocks
                 blocks_free = data.f_bfree
