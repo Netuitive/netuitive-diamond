@@ -30,7 +30,6 @@ import math
 import string
 import re
 
-
 class CassandraJolokiaCollector(JolokiaCollector):
     # override to allow setting which percentiles will be collected
 
@@ -114,77 +113,6 @@ class CassandraJolokiaCollector(JolokiaCollector):
             last_num = next_num
 
         return offsets
-
-    ########
-    #
-    # DVG
-    #
-    ########
-
-    
-    def clean_up(self, text):
-
-        try:
-                s = string.split(text, ':')
-                base = s[0]
-                jmx_keys = s[1]
-
-                s = string.split(jmx_keys, '.')
-                jmx_keys = s[0]
-
-                statistic = ''
-                if (len(s) > 1):
-                        statistic = s[1]
-
-                kvps = string.split(jmx_keys, ',')
-
-                type = ''
-                keyspace = ''
-                name = ''
-                scope = ''
-                colfam = ''
-                path = ''
-
-                for i in range(len(kvps)):
-                        kvp = string.split(kvps[i], '=')
-                        if (kvp[0] == 'type'):
-                                type = '.' + kvp[1]
-                        elif (kvp[0] == 'keyspace'):
-                                keyspace = '.' + kvp[1]
-                        elif (kvp[0] == 'name'):
-                                name = '.' + kvp[1]
-                        elif (kvp[0] == 'scope'):
-                                scope = '.' + kvp[1]
-                        elif (kvp[0] == 'columnfamily'):
-                                colfam = '.' + kvp[1]
-                        elif (kvp[0] == 'path'):
-                                path = '.' + kvp[1]
-                        else:
-                                self.log.error('@@@@ %s', kvps[i])
-
-                if (type == 'ColumnFamily'):
-                        metric_name = 'cassandra.keyspace' + keyspace + scope + name
-                elif (type == 'ThreadPool'):
-                         metric_name = 'cassandra.ThreadPool' + path + scope + name
-                                         else:
-                         metric_name = 'cassandra' + type + scope + name
-
-
-                if (statistic != ''):
-                        metric_name = metric_name + '.' + statistic
-
-
-                self.log.error('**** Old metric name = %s', text)
-                self.log.error('**** New metric name = %s', metric_name)
-
-                text = super(CassandraJolokiaCollector, self).clean_up(text)
-
-                return text
-
-        except ValueError:
-                self.log.error('#### Well, THAT didn\'t work! %s', text)
-                text = super(CassandraJolokiaCollector, self).clean_up(text)
-                return text
     
     ########
     #
