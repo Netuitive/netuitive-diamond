@@ -40,6 +40,7 @@ class NginxCollector(diamond.collector.Collector):
     def get_default_config_help(self):
         config_help = super(NginxCollector, self).get_default_config_help()
         config_help.update({
+            'precision': 'Number of decimal places to report to',
             'req_host': 'Hostname',
             'req_port': 'Port',
             'req_path': 'Path',
@@ -50,6 +51,7 @@ class NginxCollector(diamond.collector.Collector):
 
     def get_default_config(self):
         default_config = super(NginxCollector, self).get_default_config()
+        default_config['precision'] = 0
         default_config['req_host'] = 'localhost'
         default_config['req_port'] = 8080
         default_config['req_path'] = '/nginx_status'
@@ -83,12 +85,13 @@ class NginxCollector(diamond.collector.Collector):
         req = urllib2.Request(url=url, headers=headers)
         try:
             handle = urllib2.urlopen(req)
+            precision = int(self.config['precision'])
             for l in handle.readlines():
                 l = l.rstrip('\r\n')
                 if activeConnectionsRE.match(l):
                     self.publish_gauge(
                         'active_connections',
-                        int(activeConnectionsRE.match(l).group('conn')))
+                        int(activeConnectionsRE.match(l).group('conn')), precision)
                 elif totalConnectionsRE.match(l):
                     m = totalConnectionsRE.match(l)
 
@@ -103,11 +106,14 @@ class NginxCollector(diamond.collector.Collector):
                     #    float(m.group('acc'))
                     #
                     ###
-                    self.publish_counter('conn_accepted', int(m.group('conn')))
-                    self.publish_counter('conn_handled', int(m.group('acc')))
-                    self.publish_counter('req_handled', int(m.group('req')))
+                    self.publish_counter('conn_accepted', int(
+                        m.group('conn')), precision)
+                    self.publish_counter(
+                        'conn_handled', int(m.group('acc')), precision)
+                    self.publish_counter(
+                        'req_handled', int(m.group('req')), precision)
                     ###
-                    # 
+                    #
                     # 2016/07/12 DVG - see comment above
                     #
                     # self.publish_gauge('req_per_conn', float(req_per_conn))
@@ -115,9 +121,12 @@ class NginxCollector(diamond.collector.Collector):
                     ###
                 elif connectionStatusRE.match(l):
                     m = connectionStatusRE.match(l)
-                    self.publish_gauge('act_reads', int(m.group('reading')))
-                    self.publish_gauge('act_writes', int(m.group('writing')))
-                    self.publish_gauge('act_waits', int(m.group('waiting')))
+                    self.publish_gauge('act_reads', int(
+                        m.group('reading')), precision)
+                    self.publish_gauge('act_writes', int(
+                        m.group('writing')), precision)
+                    self.publish_gauge('act_waits', int(
+                        m.group('waiting')), precision)
         except IOError, e:
             self.log.error("Unable to open %s" % url)
         except Exception, e:
