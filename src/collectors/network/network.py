@@ -42,7 +42,7 @@ class NetworkCollector(diamond.collector.Collector):
         config.update({
             'path':         'network',
             'interfaces':   ['eth', 'bond', 'em', 'p1p', 'eno', 'enp', 'ens',
-                             'enx', 'en'],
+                             'enx', 'en', 'p4p'],
             'byte_unit':    ['bit', 'byte'],
             'greedy':       'true',
         })
@@ -103,7 +103,7 @@ class NetworkCollector(diamond.collector.Collector):
             network_stats = psutil.net_io_counters(pernic=True)
 
             exp = ('^(?:\s*)((?:%s)%s)' %
-                (('|'.join(self.config['interfaces'])), greed))
+                   (('|'.join(self.config['interfaces'])), greed))
 
             reg = re.compile(exp)
             # Match Interfaces
