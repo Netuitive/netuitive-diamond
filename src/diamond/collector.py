@@ -4,7 +4,7 @@
 The Collector class is a base class for all metric collectors.
 
 Netuitive Change History
-    2016/07/11 DVG - Changed the publish_counter() function such that it actually does publish the 
+    2016/07/11 DVG - Changed the publish_counter() function such that it actually does publish the
                      value as a COUNTER rather than a RATE. See comments inline for more detail.
 
 """
@@ -356,10 +356,13 @@ class Collector(object):
         if suffix:
             prefix = '.'.join((prefix, suffix))
 
-        if path == '.':
-            return '.'.join([prefix, name])
-        else:
-            return '.'.join([prefix, path, name])
+        path_r = [name]
+        if path and path != '.':
+            path_r.insert(0, path)
+        if prefix and prefix != '':
+            path_r.insert(0, prefix)
+
+        return '.'.join(path_r)
 
     def get_hostname(self):
         return get_hostname(self.config)
@@ -418,14 +421,14 @@ class Collector(object):
     def publish_counter(self, name, value, precision=0, max_value=0,
                         time_delta=True, interval=None, allow_negative=False,
                         instance=None):
-        
+
         ###
         #
         # 2016/07/11 DVG - The original version of this code was calling
         # self.derivative(), which first computes the differential (the
         # difference between the current value and the previous value),
-        # and then divides by the interval. The end result was that the 
-        # value published was a RATE and not actually a COUNTER, despite 
+        # and then divides by the interval. The end result was that the
+        # value published was a RATE and not actually a COUNTER, despite
         # the type being set to COUNTER.
         #
         ###
@@ -435,7 +438,7 @@ class Collector(object):
         #                         time_delta=time_delta, interval=interval,
         #                         allow_negative=allow_negative,
         #                         instance=instance)
-        return self.publish(name, value, 
+        return self.publish(name, value,
                             precision=precision, metric_type='COUNTER',
                             instance=instance)
 
