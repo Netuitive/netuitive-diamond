@@ -133,6 +133,8 @@ class CassandraJolokiaCollector(JolokiaCollector):
         s = string.split(text, ':')
 
         # We don't care about the first part, but the second part contains all of the JMX keys.
+        ####
+        base = s[0]
         jmx_keys = s[1]
 
         # Some metrics also have a statistic (i.e., "Min", "Max", "OneMinuteRate", "Value")
@@ -170,52 +172,125 @@ class CassandraJolokiaCollector(JolokiaCollector):
         for i in range(len(kvps)):
                 # Split the pair on the equal sign such that kvp[0] is the key and kvp[1] is the value
                 kvp = string.split(kvps[i], '=')
-                # Replace any dots in the values with dashes
-                kvp[1] = string.replace(kvp[1], '.', '-')
-                # Check the name of the key, and set the appropriate variable accordingly
+                
+                # Check the name of the key, and set the appropriate variable accordingly.
+                # In most cases, we'll replace any dots in the values with dashes. We don't do this
+                # for the "type" key, though, as in some cases we need to do further parsing first.
                 if (kvp[0].lower() == 'type'):
                         m_type = kvp[1]
                 elif (kvp[0].lower() == 'keyspace'):
-                        keyspace = '.' + kvp[1]
+                        keyspace = '.' + string.replace(kvp[1], '.', '-')
                 elif (kvp[0].lower() == 'name'):
-                        name = '.' + kvp[1]
+                        name = '.' + string.replace(kvp[1], '.', '-')
                 elif (kvp[0].lower() == 'scope'):
-                        scope = '.' + kvp[1]
+                        scope = '.' + string.replace(kvp[1], '.', '-')
                 elif (kvp[0].lower() == 'columnfamily'):
-                        colfam = '.' + kvp[1]
+                        colfam = '.' + string.replace(kvp[1], '.', '-')
                 elif (kvp[0].lower() == 'path'):
-                        path = '.' + kvp[1]
+                        path = '.' + string.replace(kvp[1], '.', '-')
                 else:
                         self.log.error('Unknown key name: %s', kvps[i])
 
-        # Now we need to build the metric name, which happens in slightly different ways depending on the metric type.
+        # Now we need to build the metric name, which happens in slightly different ways depending on:
+        #   1) Which MBean the metric was retrieved from; and
+        #   2) What type of metric it is.
 
-        # If the metric type is a column family metric, then the metric is either:
-        #   1) Associated with a particluar table in a particular keyspace; or
-        #   2) An aggregate across all tables and keyspaces in the Cassandra node.
-        if (m_type == 'ColumnFamily') or (m_type == 'ColumnFamilies'):
-                if (keyspace != ''):
-                        # If the keyspace is not blank, it's a metric for a specific keyspace and table
-                        metric_name = 'Keyspace._Keyspaces' + keyspace + '._Tables' + scope + name
+        # Is this from the org.apache.cassandra.metrics MBean (Cassandra 2+)?
+        if (base == 'org.apache.cassandra.metrics'):
+            # If the metric type is a column family metric, then the metric is either:
+            #   1) Associated with a particluar table in a particular keyspace; or
+            #   2) An aggregate across all tables and keyspaces in the Cassandra node.
+            if (m_type == 'ColumnFamily') or (m_type == 'ColumnFamilies'):
+                    if (keyspace != ''):
+                            # If the keyspace is not blank, it's a metric for a specific keyspace and table
+                            metric_name = 'Keyspace._Keyspaces' + keyspace + '._Tables' + scope + name
+                    else:
+                            # Otherwise, it's a global aggregate
+                            metric_name = 'Keyspace' + scope + name
+            # If the metric type is a keyspace metric, then the metric is either:
+            #   1) An aggregate across all tables in a particular keyspace; or
+            #   2) An aggregate across all tables and keyspaces in the Cassandra node.
+            elif (m_type == 'Keyspace'):
+                    if (keyspace != ''):
+                            # If the keyspace is not blank, it's an aggrgate metric for a specific keyspace
+                            metric_name = m_type + '._Keyspaces' + keyspace + scope + name
+                    else:
+                            # Otherwise, it's a global aggregate
+                            metric_name = 'Keyspace' + scope + name
+            # If the metric is a thread pool metric, there is an additional 'path' component to add to the metric name
+            elif (m_type == 'ThreadPool'):
+                     metric_name = m_type + path + scope + name
+            # All other metrics are constructed simply as type + scope + name
+            else:
+                    metric_name = m_type + scope + name
+        
+        elif (base == 'org.apache.cassandra.internal'): 
+            # Is this from the "internal" MBean (Cassandra 1+)?  All of these are metrics related to the
+            # thread pools. The value for the "type" key will actually be of the form "<pool-name>.<metric>"
+            metric_name = 'ThreadPools.' + m_type
+        
+        elif (base == 'org.apache.cassandra.request'): 
+            # Is this from the "request" MBean (Cassandra 1+)?  All of these are metrics related to the thread
+            # pools for request/response. The value for the "type" key will actually be of the form "<pool-name>.<metric>"
+            metric_name = 'ThreadPools.' + m_type
+        
+        elif (base == 'org.apache.cassandra.db'): 
+            # Is this from the "db" MBean (Cassandra 1+)?  
+
+            # If the "type" starts with "ColumnFamilies", then the metric is related to column families 
+            # (i.e., tables).  In this case:
+            #    - The value for "keyspace" will be the name of the specific keyspace;
+            #    - The value for "columnfamily" will be the name of the specific table; and
+            #    - The value for the "type" key will take one of the following forms:
+            #       1) "ColumnFamilies.<metricname>" or 
+            #       2) "ColumnFamilies.<metricname>.<stat>"
+            if (m_type[0:14] == 'ColumnFamilies'):
+                metric_name = 'Keyspace._Keyspaces' + keyspace + '._Tables' + colfam + m_type[14:]
+            else:
+                # Make sure we map to names that are compatible with the v2 MBean
+                s = string.split(m_type, '.')
+
+                if (s[0] == 'Caches'):
+                    s[0] = 'Cache'
+                elif (s[0] == 'Commitlog'):
+                    s[0] = 'CommitLog'
+                elif (s[0] == 'CompactionManager'):
+                    s[0] = 'Compaction'
+
+                metric_name = s[0] + '.' + s[1]
+        
+        elif (base == 'org.apache.cassandra.net'):
+            # Is this from the "net" MBean (Cassandra 1+)?  All of these are metrics related to networking.
+            # Their format and organization is the most complicated of the Cassandra 1 MBeans. 
+
+            # One metric type is 'FailureDetector'; we will present these as FailureDetector.<metric>
+            if (m_type[0:15] == 'FailureDetector'):
+                metric_name = m_type
+            else:
+                # The other metric type is MessagingService
+                # First, strip "MessagingService." from the start of the type
+                m_type = m_type[17:]
+
+                # At this point, we have two formats of metric to consider:
+                #    1) DroppedMessages.xxx or RecentlyDroppedMessages.xxx (where xxx is the metric name)
+                #    2) xxx.127.0.0.1 (where xxx is the metric name and 127.0.0.1 could be any IP address or hostname)
+
+                if (m_type[0:15] == 'DroppedMessages' or m_type[0:23] == 'RecentlyDroppedMessages'):
+                    # Group both of these under 'DroppedMessage'
+                    metric_name = 'DroppedMessage.' + m_type[string.find(m_type, '.')+1:]
                 else:
-                        # Otherwise, it's a global aggregate
-                        metric_name = 'Keyspace' + scope + name
-        # If the metric type is a keyspace metric, then the metric is either:
-        #   1) An aggregate across all tables in a particular keyspace; or
-        #   2) An aggregate across all tables and keyspaces in the Cassandra node.
-        elif (m_type == 'Keyspace'):
-                if (keyspace != ''):
-                        # If the keyspace is not blank, it's an aggrgate metric for a specific keyspace
-                        metric_name = m_type + '._Keyspaces' + keyspace + scope + name
-                else:
-                        # Otherwise, it's a global aggregate
-                        metric_name = 'Keyspace' + scope + name
-        # If the metric is a thread pool metric, there is an additional 'path' component to add to the metric name
-        elif (m_type == 'ThreadPool'):
-                 metric_name = m_type + path + scope + name
-        # All other metrics are constructed simply as type + scope + name
+                    # The metric is everything up to the first dot; the host is everything afterwards; we
+                    # just need to make sure that we convert any dots in the host string into dashes.
+                    i = string.find(m_type, '.')
+                    metric = m_type[0:i]
+                    host = string.replace(m_type[i+1:], '.', '-')
+                    metric_name = "Connection." + host + '.' + metric
+
+        elif  (base[0:4] == 'java'):
+                # Is this from the "java" MBean?  All of these are metrics related to the JVM.
+                metric_name = 'JVM.' + m_type
         else:
-                metric_name = m_type + scope + name
+            self.log.error('Unknown MBean: %s', kvps[i])  ##### handle by calling super-class? probably.....
 
         # If there is a statistic, we append that to the metric name.
         # (NOTE: We don't append the statistic if it's 'Value', since metrics with 'Value' don't have
