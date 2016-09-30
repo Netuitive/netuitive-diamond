@@ -22,6 +22,8 @@ CassandraJolokiaCollector.conf
 Netuitive Change History
     2016/09/19 DVG - Override the clean_up() function to clean metric names in a
                      Cassandra-specific way. See comments inline for more detail.
+    2016/09/29 DVG - Added support for java.* MBeans as well as the older Cassandra
+                     MBeans.
 
 """
 
@@ -132,8 +134,7 @@ class CassandraJolokiaCollector(JolokiaCollector):
         # The metric name as it comes in has two main parts separated by a colon.
         s = string.split(text, ':')
 
-        # We don't care about the first part, but the second part contains all of the JMX keys.
-        ####
+        # The first part tells us the name of the MBean; the second part contains all of the JMX keys.
         base = s[0]
         jmx_keys = s[1]
 
@@ -290,7 +291,9 @@ class CassandraJolokiaCollector(JolokiaCollector):
                 # Is this from the "java" MBean?  All of these are metrics related to the JVM.
                 metric_name = 'JVM.' + m_type
         else:
-            self.log.error('Unknown MBean: %s', kvps[i])  ##### handle by calling super-class? probably.....
+            # Use the default Jolokia clean_up if it's not an MBean we've accounted for
+            self.log.info('Unknown MBean for Cassandra: %s', kvps[i])
+            super(self).clean_up(text)
 
         # If there is a statistic, we append that to the metric name.
         # (NOTE: We don't append the statistic if it's 'Value', since metrics with 'Value' don't have
