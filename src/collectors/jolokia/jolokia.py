@@ -46,6 +46,10 @@ an mbean.
     "-v\d+\.\d+\.\d+" = "-AllVersions"
     ".*GetS2Activities.*" = ""
 ```
+Netuitive Change History
+    2016/10/25 DVG - Updated the clean_up() function to provide a cleaner default
+                     way of formatting the metric names. See comments inline for 
+                     more detail.
 """
 
 import diamond.collector
@@ -55,7 +59,7 @@ import json
 import re
 import urllib
 import urllib2
-
+import string
 
 class JolokiaCollector(diamond.collector.Collector):
 
@@ -167,7 +171,9 @@ class JolokiaCollector(diamond.collector.Collector):
     def _check_mbean(self, mbean):
         if not self.mbeans:
             return True
+
         mbeanfix = self.clean_up(mbean)
+
         if self.config['regex'] is not None:
             for chkbean in self.mbeans:
                 if chkbean.match(mbean) is not None or \
@@ -187,11 +193,15 @@ class JolokiaCollector(diamond.collector.Collector):
                     mbeans = obj['value'] if obj['status'] == 200 else {}
                 except KeyError:
                     # The reponse was totally empty, or not an expected format
-                    self.log.error('Unable to retrieve domain %s.', domain)
+                    self.log.error('Unable to retrieve MBeans for domain %s.', domain)
                     continue
                 for k, v in mbeans.iteritems():
                     if self._check_mbean(k):
                         self.collect_bean(k, v)
+                    else:
+                        self.log.debug('Not collecting from MBean ' + k)
+            else:
+                self.log.debug('Ignoring domain ' + domain)
 
     def _read_json(self, request):
         json_str = request.read()
@@ -268,10 +278,116 @@ class JolokiaCollector(diamond.collector.Collector):
             req.add_header("Authorization", "Basic %s" % base64string)
         return req
 
+    #####################################################################
+    #
+    # 2016/10/25 
+    # DVG - Netuitive
+    # 
+    # The clean_up() method is used to take the MBean name and transform
+    # it into a cleaner and easier-to-read metric name.  It is expected
+    # that most subclasses of the JolokiaCollector (such as the collectors
+    # for Cassandra and Kafka) will override this function to provide 
+    # application-specific reformatting.  It is also expected that the 
+    # subclassses will invoke the super-class version of this function
+    # (below) to handle any MBeans that they are not specifically defined
+    # to handle. For example, the subclasses can rely on the super-class
+    # to reformat the metric names for Java MBeans.
+    #
+    # To understand the process used, let's look at a typical Java MBean:
+    #
+    #       java.lang:name=Code CacheUsage,type=MemoryPool.max
+    #
+    # There are five pieces to the JMX MBean name that we take into
+    # consideration:
+    #
+    #   1) domain - This is the portion to the left of the colon (the
+    #       portion to the right represents the JMX keys).
+    #           EX: java.lang
+    #
+    #   2) name - The "name" JMX key represents the name of the metric.
+    #           EX: Code CacheUsage
+    #
+    #   3) type - The "type" JMX key represents the metric type. In
+    #       practice, it also often contains extra information, such as
+    #       a statistic to further qualify the metric nane. For our
+    #       purposes, therefore, "type" is everything to the left of the
+    #       first dot in the value of the "type" key.
+    #           EX: MemoryPool
+    #
+    #   4) remainder - Everything to the right of the first dot in the
+    #       value of the "type" key.
+    #           EX: max
+    #
+    #   5) other - Any JMX keys other than "name" or "type" fall into 
+    #       this category. We make no attempt to interpret these, but
+    #       simply slip them into the hierarchical metric name in the
+    #       order we encounter them.
+    #
+    # Once these pieces are parsed out, a draft of the metric name is 
+    # built as follows:
+    #
+    #           domain.type.other.name.remainder
+    #
+    #           EX: java.lang.MemoryPool.Code CacheUsage.max
+    #
+    # The final step is carried out by the original code for this function,
+    # which uses regex rules to re-write the metric name. This handles things
+    # such as replacing spaces with underscores, and gives us the final metric
+    # name.
+    #           EX: java.lang.MemoryPool.Code_CacheUsage.max
+    #
+    #####################################################################
+
     def clean_up(self, text):
+
+        # The MBean name has two main parts separated by a colon.
+        s = string.split(text, ':')
+
+        # The first part tells us the domain of the MBean; the second part contains all of the JMX keys.
+        domain = s[0]
+        jmx_keys = s[1]
+
+        # Parse the jmx_keys string to split everything out into an array of name-value pairs.
+        kvps = string.split(jmx_keys, ',')
+
+        # Initialize the variables that will be used to hold the values from the JXM keys
+        m_type = ''
+        name = ''
+        other = ''
+
+        # Loop through the array of name-value pairs.
+        for i in range(len(kvps)):
+            # Split the pair on the equal sign such that kvp[0] is the key and kvp[1] is the value
+            kvp = string.split(kvps[i], '=')
+            
+            # Check the name of the key, and set the appropriate variable accordingly.
+            # In most cases, we'll replace any dots in the values with dashes. We don't do this
+            # for the "type" key, though, as in some cases we need to do further parsing first.
+            if (kvp[0].lower() == 'type'):
+                m_type = kvp[1]
+            elif (kvp[0].lower() == 'name'):
+                name = '.' + string.replace(kvp[1], '.', '-')
+            else:
+                other = other + '.' + string.replace(kvp[0], '.', '-') + '.' + string.replace(kvp[1], '.', '-')
+
+        # The type parameter will occassionally have additional qualifiers to the metric, such
+        # as a statistic, which should get appended after the metric name.
+        remainder=''
+        dot_index = string.find(m_type, '.')
+        if (-1 != dot_index):
+            # If there was a dot, parse out the remainder, and strip it off the jmx_keys
+            remainder = m_type[dot_index+1:]
+            m_type = m_type[:dot_index]
+
+        # Now build the new metric name
+        metric_name = domain + '.' + m_type + other + name + remainder
+
+        # Finally, the original code for this method is called to perform any required regex re-writes
         for (oldregex, newstr) in self.rewrite:
-            text = oldregex.sub(newstr, text)
-        return text
+            metric_name = oldregex.sub(newstr, metric_name)
+
+        # And return the final version of the metric name
+        return metric_name
 
     def collect_bean(self, prefix, obj):
         for k, v in obj.iteritems():
