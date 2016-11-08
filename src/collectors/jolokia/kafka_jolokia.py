@@ -30,14 +30,70 @@ import string
 import re
 
 class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollector):
-    
+
     ########
     #
-    # The collect() method is over-ridden to allow us to collect certain Zookeeper
+    # The get_default_config_help() function is over-ridden to provide help on the config
+    # options specific to this colector.
+    #
+    # 2016-11-03 DVG
+    #
+    ########
+
+    def get_default_config_help(self):
+
+        # Get the parent class config help object.
+        config_help = super(KafkaJolokiaCollector, self).get_default_config_help()
+         
+        # Update it....
+        config_help.update({
+            'bin': 'The path to the kafka-run-class.sh script.  Default is /opt/kafka/bin/kafka-run-class.sh',
+            'version': 'The version of Kafka. Two values are accepted here. 8 for Kafka versions 8 and earlier, or 9 for Kafka versions 9 or later. The default is 9.'
+            'zookeeper': 'Zookeper host and port number. If no port number is given, defaults to 2181. If nothing is given, defaults to localhost:2181',
+            'consumer_groups': 'Comma-separated list of consumer groups. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically.'
+            'topics': 'Comma-separated list of consumer topics. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically. If not specified, default is all topics.',
+        })
+
+        # .... and return it.
+        return config_help
+
+
+    ########
+    #
+    # The get_default_config() function is over-ridden to provide the default values for the config
+    # options specific to this colector.
+    #
+    # 2016-11-03 DVG
+    #
+    ########
+
+    def get_default_config(self):
+        """
+        Returns the default collector settings
+        """
+
+        # Get the parent class default config class
+        config = super(KafkaJolokiaCollector, self).get_default_config()
+
+        # Update it....
+        config.update({
+            'path': 'kafka',
+            'bin': '/opt/kafka/bin/kafka-run-class.sh',
+            'version': '8',
+            'zookeeper': 'localhost:2181'
+        })
+
+        # ....and return it.
+        return config
+
+
+    ########
+    #
+    # The collect() function is over-ridden to allow us to collect certain Zookeeper
     # metrics in addition to the Kafka ones. We do this because those Zookeeper
     # metrics are crucial for effective monitoring of Kafka.
     #
-    # 2016-09-26 DVG
+    # 2016-10-26 DVG
     #
     ########
 
@@ -51,145 +107,30 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         # the consumer offset (and hence no knowledge of the lag).
         #
         # This code improves upon and replaces the existing KafkaConsumerLagCollector,
-        # which required you to specify the consumer groups in a config file. Here,
-        # we will discover them instead.
-        #
-        # All of this is done using the kakfa.admin.ConsumerGroupCommand utility,
-        # since none of these metrics are available via JMX.
+        # which required you to specify the consumer groups and topics in the config file. 
+        # While this is still necessary for Kafka 8 and earlier, Kafka 9 introduced the 
+        # means to discover the consumer groups and topics. 
         #
         ####
 
-        # The "hosts" parameter in the config file specifies a list of Zookeeper hosts
-        # to collect from.  For the Kafka integration, we assume that there is only
-        # one. If more than one is specified, we'll only use the first one.
-        zk_hosts = self.config.get('hosts')
-        zk_host = [hosts][0]
+        # The "zookeeper" parameter in the config file specifies the Zookeeper host
+        # and port to collect from.  
+        zookeeper = self.config.get('zookeeper')
+        
+        # If the port is not specified, we assume 2181.
+        if (-1 == string.find(zookeeper, ':')):
+            zookeeper = zookeeper + ':2181'
 
-        # The host is of the form alias@host:port where alias is optional.
-        if (-1 == string.find(zk_host, '@')):
-            alias = 'zookeeper'
+        # Get the version number from the configuration
+        k_ver = self.config.get('version')
+
+        # Call a different collection routine for the consumer lag metrics, depending on the version of Kafka
+        if (k_ver == '8'):
+            self.collect_consumer_lag_8(zookeeper)
+        elif (k_ver == '9'):
+            self.collect_consumer_lag_9(zookeeper)
         else:
-            s = string.split(zk_host, '@')
-            alias = s[0]
-            zk_host = s[1]
-
-        # Set up the first call to ConsumerGroupCommand, a call to list the consumer groups.
-        cmd = [
-            'kafka.admin.ConsumerGroupCommand',
-            '--list',
-            '--zookeeper',
-            zk_host
-        ]
-
-        # Run the command (via the run_command function of the ProcessCollector)
-        raw_output = self.run_command(cmd)
-
-        # Assuming we get output, process it.
-        if raw_output is not None:
-
-            # Loop through each line of the outpt we got. Each line will contain the name of exactly one consumer group.
-            for i, c_group in enumerate(raw_output[0].split('\n')):
-
-                # If the line is blank, continue to the next line.
-                if c_group == '':
-                    continue
-
-                # Now prepare the second command, which will get the metrics for the current consumer group.
-                cmd2 = [
-                    'kafka.admin.ConsumerGroupCommand',
-                    '--describe',
-                    '--group',
-                    c_group,
-                    '--zookeeper',
-                    zk_host
-                ]
-
-                # Run the command and get the raw output.
-                raw_output2 = self.run_command(cmd2)
-
-                # If we didn't get anything, log an error and continue on to the next consumer group.
-                if raw_output2 is None:
-                    self.log.error('No output returned for consumer group ' + c_group)
-                    continue
-    
-
-                ###
-                #
-                # The output here is typically one line with column headers followed by one or more
-                # lines of statistics for the consumer group.  There will be one line for each
-                # partition of each topic that the consumer is listening on.
-                #
-                # There may, however, be an error message returned instead of the metrics we want.
-                #
-                ###
-
-                # Loop through each line of the output.
-        	    for i2, line in enumerate(raw_output2[0].split('\n')):
-    
-                # If the line is blank, or if it is the header line, continue to the next line.	
-        		if (line == '' or line[0:5] == 'GROUP'):
-        			continue
-    	
-                # Split the line on commas to get the details (the metrics we want).
-        		details = string.split(line, ', ')
-
-                # If there are less than 7, assume this is an error message and not data.
-                # Presumably we will not get an error message with 6 or more commas! :)
-                # If this happens, skip over this consumer group, and move on to the next.
-        		if (len(details) < 7):
-        			self.log.error('Error processing consumer group %s - %s', c_group, details[0])
-        			break
-
-                ###
-                #
-                # Each line contains multiple metrics. First, we construct the common base for each metric name.
-                #
-                ###
-
-                # Each metric will start with the alias (typically 'zookeeper'), followed by 'consumer_groups'
-        		metric_base = alias + '.consumer_groups'
-
-                # Next up is the consumer group name
-        		metric_base = metric_base + '.' + details[0]
-
-                # Followed by the topic name
-        		metric_base = metric_base + '.' + details[1]
-
-                # Followed by the partition number, which we preface with "partition-" for readability
-        		metric_base = metric_base + '.partition-' + details[2]
-
-                ###
-                #
-                # And now for each of the actual metric names
-                #
-                ###
-
-                # 1) Consumer offet
-        		metric_name = metric_base + '.consumer_offset'
-        		value = details[3]
-        		self.publish(metric_name, value)
-        		
-                # 2) Broker offset
-        		metric_name = metric_base + '.broker_offset'
-        		value = details[4]
-        		self.publish(metric_name, value)
-
-                # 3) Consumer lag (which is broker offset minus consumer offset)
-        		metric_name = metric_base + '.consumer_lag'
-        		value = details[5]
-        		self.publish(metric_name, value)
-
-                # 4) Owner - This column from the Zookeeper results has a string with the name of the 
-                # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
-                # indicate whether or not the consumer group has an owner.  
-        		metric_name = metric_base + '.has_owner'
-
-        		if (details[6].lower() == 'none'):
-        			value = 0
-        		else:
-        			value = 1
-
-        		self.publish(metric_name, value)
+            raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "8" for Kafka versions 8 and earlier, or "9" for Kafka versions 9 and later.')
 
         ###
         # 
@@ -212,6 +153,228 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
 
         # And now run the Jolokia collector to get the JMX metrics
         super(KafkaJolokiaCollector, self).collect()
+
+
+    ########
+    #
+    # The collect_consumer_lag_9() function collects the consumer lag metrics for Kafka
+    # versions 9 and above. Version 9 introduced the kafka.admin.ConsumerGroupCommand
+    # class which allows us to discover the consumer groups and the topics they are 
+    # using, rather than requiring them to be specified in the config file up front.
+    #
+    # 2016-11-03 DVG
+    #
+    ########
+
+    def collect_consumer_lag_9(zookeeper):
+
+        # Set up the first call to ConsumerGroupCommand, a call to list the consumer groups.
+        cmd = [
+            'kafka.admin.ConsumerGroupCommand',
+            '--list',
+            '--zookeeper',
+            zookeeper
+        ]
+
+        # Run the command (via the run_command function of the ProcessCollector)
+        raw_output = self.run_command(cmd)
+
+        # Assuming we get output, process it.
+        if raw_output is not None:
+
+            # Loop through each line of the outpt we got. Each line will contain the name of exactly one consumer group.
+            for i, c_group in enumerate(raw_output[0].split('\n')):
+
+                # If the line is blank, continue to the next line.
+                if c_group == '':
+                    continue
+
+                # Now prepare the second command, which will get the metrics for the current consumer group.
+                cmd2 = [
+                    'kafka.admin.ConsumerGroupCommand',
+                    '--describe',
+                    '--group',
+                    c_group,
+                    '--zookeeper',
+                    zookeeper
+                ]
+
+                # Run the command and get the raw output.
+                raw_output2 = self.run_command(cmd2)
+
+                # If we didn't get anything, log an error and continue on to the next consumer group.
+                if raw_output2 is None:
+                    self.log.error('No output returned for consumer group ' + c_group)
+                    continue
+    
+
+                ###
+                #
+                # The output here is typically one line with column headers followed by one or more
+                # lines of statistics for the consumer group.  There will be one line for each
+                # partition of each topic that the consumer is listening on.
+                #
+                # There may, however, be an error message returned instead of the metrics we want.
+                #
+                ###
+
+                # Loop through each line of the output.
+                for i2, line in enumerate(raw_output2[0].split('\n')):
+    
+                # If the line is blank, or if it is the header line, continue to the next line. 
+                if (line == '' or line[0:5] == 'GROUP'):
+                    continue
+        
+                # Split the line on commas to get the details (the metrics we want).
+                details = string.split(line, ', ')
+
+                # If there are less than 7, assume this is an error message and not data.
+                # Presumably we will not get an error message with 6 or more commas! :)
+                # If this happens, skip over this consumer group, and move on to the next.
+                if (len(details) < 7):
+                    self.log.error('Error processing consumer group %s - %s', c_group, details[0])
+                    break
+
+                ###
+                #
+                # Each line contains multiple metrics. First, we construct the common base for each metric name.
+                #
+                ###
+
+                # Each metric will start with the alias (typically 'zookeeper'), followed by 'consumer_groups'
+                metric_base = alias + '.consumer_groups'
+
+                # Next up is the consumer group name
+                metric_base = metric_base + '.' + details[0]
+
+                # Followed by the topic name
+                metric_base = metric_base + '.' + details[1]
+
+                # Followed by the partition number, which we preface with "partition-" for readability
+                metric_base = metric_base + '.partition-' + details[2]
+
+                ###
+                #
+                # And now for each of the actual metric names
+                #
+                ###
+
+                # 1) Consumer offet
+                metric_name = metric_base + '.consumer_offset'
+                value = details[3]
+                self.publish(metric_name, value)
+                
+                # 2) Broker offset
+                metric_name = metric_base + '.broker_offset'
+                value = details[4]
+                self.publish(metric_name, value)
+
+                # 3) Consumer lag (which is broker offset minus consumer offset)
+                metric_name = metric_base + '.consumer_lag'
+                value = details[5]
+                self.publish(metric_name, value)
+
+                # 4) Owner - This column from the Zookeeper results has a string with the name of the 
+                # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
+                # indicate whether or not the consumer group has an owner.  
+                metric_name = metric_base + '.has_owner'
+
+                if (details[6].lower() == 'none'):
+                    value = 0
+                else:
+                    value = 1
+
+                self.publish(metric_name, value)
+
+
+    ########
+    #
+    # The collect_consumer_lag_8() function collects the consumer lag metrics for Kafka
+    # versions 8 and below. Version 8 did not have a way to discover the consumer groups 
+    # or the topics they are using, hence we require them to be specified in the config 
+    # file up front.
+    #
+    # 2016-11-03 DVG, from code originally by Shawn Butts
+    #
+    ########
+
+    def collect_consumer_lag_8(zookeeper):
+        try:
+
+            # Get the list of consumer groups, and the list of topics
+            consumer_groups = self.config.get('consumer_groups')
+            topics = self.config.get('topics')
+
+            # If consumer_groups isn't already a list object, convert it 
+            if isinstance(consumer_groups, list) is False:
+                a = consumer_groups
+                consumer_groups = [a]
+
+            # Loop through the list of consumer groups; we need to make one call per group
+            for consumer_group in consumer_groups:
+
+                # Build the command to execute
+                cmd = [
+                    'kafka.tools.ConsumerOffsetChecker',
+                    '--group',
+                    consumer_group,
+                    '--zookeeper',
+                    zookeeper
+                ]
+
+                # If topics were specified in the config file, add the --topic parameter to the command.
+                # If not, the command will default to retrieving the metrics for all topics.
+                if topics:
+                    cmd += '--topic %s' % topics
+
+                # Execute the command and get the raw output.
+                raw_output = self.run_command(cmd)
+
+                # If there is no output for this consumer group, continue on to the next one.
+                if raw_output is None:
+                    continue
+
+                total = 0
+                for i, output in enumerate(raw_output[0].split('\n')):
+
+                    if i == 0:
+                        continue
+
+                    items = output.strip().split(' ')
+                    metrics = [item for item in items if item]
+
+                    if not metrics:
+                        continue
+
+                    prefix_keys = metrics[:3]
+                    value = float(metrics[5])
+
+                    if cluster_name:
+                        prefix_keys.insert(0, cluster_name)
+
+                    self.publish('.'.join(prefix_keys), value)
+                    total += value
+
+                self.publish('.'.join(prefix_keys).rsplit('.', 1)[0] + '.total', total)
+
+        except Exception as e:
+            self.log.error(e)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
     ########
