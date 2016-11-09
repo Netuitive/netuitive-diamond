@@ -266,6 +266,8 @@ class CassandraJolokiaCollector(JolokiaCollector):
                         metric_name = 'CommitLog'
                     elif (s[0] == 'CompactionManager'):
                         metric_name = 'Compaction'
+                    else:
+                        metric_name = s[0]
 
                     # If there was, in fact, a dot, reattach the right-hand side
                     if (len(s) > 1):
@@ -316,7 +318,7 @@ class CassandraJolokiaCollector(JolokiaCollector):
             # Finally, return the new metric name.
             return metric_name                        
 
-    # IF any unexpected exceptions occur, log the full details, then return an empty string for the metric name in order to skip it
-    except Exception as e:
-        self.log.error("An unhandled exception has occurred. The full bean name is: %s - This metric will be SKIPPED, but processing will continue.  The full exception text is:\n%s", text, str(e))
-        return ""
+        # If any unexpected exceptions occur, log the full details, then return an empty string for the metric name in order to skip it
+        except Exception as e:
+            self.log.error("An unhandled exception has occurred. The full bean name is: %s - This metric will be SKIPPED, but processing will continue.  The full exception text is:\n%s", text, str(e))
+            return ""
