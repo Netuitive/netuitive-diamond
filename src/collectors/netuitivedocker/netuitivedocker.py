@@ -70,12 +70,22 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                             self.metric_name = name + ".cpu." + key + str(i)
                             self.publish_counter(
                                 self.metric_name, self.value[i])
+            
             # network metrics
-            self.networks = self.flatten_dict(metrics['networks'])
-            for key, value in self.networks.items():
-                if value != None:
-                    metric_name = name + ".network." + key
-                    self.publish_counter(metric_name, value)
+            self.network = None
+
+            if 'network' in metrics:
+                self.network = self.flatten_dict(metrics['network'])
+
+            if 'networks' in metrics:
+                self.network = self.flatten_dict(metrics['networks'])
+
+            if self.network is not None:
+                for key, value in self.network.items():
+                    if value is not None:
+                        metric_name = name + ".network." + key
+                        self.publish_counter(metric_name, value)
+            
             # blkio metrics
             self.blkio = self.flatten_dict(metrics['blkio_stats'])
             for key, value in self.blkio.items():
