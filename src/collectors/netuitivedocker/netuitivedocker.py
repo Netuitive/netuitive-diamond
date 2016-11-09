@@ -51,13 +51,13 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             # memory metrics
             self.memory = self.flatten_dict(metrics['memory_stats'])
             for key, value in self.memory.items():
-                if value != None:
+                if value is not None:
                     metric_name = name + ".memory." + key
                     self.publish_gauge(metric_name, value)
             # cpu metrics
             self.cpu = self.flatten_dict(metrics['cpu_stats'])
             for key, value in self.cpu.items():
-                if value != None:
+                if value is not None:
                     # percpu_usage is a list, we'll deal with it after
                     if type(value) == int:
                         metric_name = name + ".cpu." + key
@@ -89,7 +89,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             # blkio metrics
             self.blkio = self.flatten_dict(metrics['blkio_stats'])
             for key, value in self.blkio.items():
-                if value != None:
+                if value is not None:
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
 
