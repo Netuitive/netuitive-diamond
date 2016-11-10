@@ -26,6 +26,7 @@ import diamond.collector
 from diamond.collector import str_to_bool
 import re
 import zlib
+import ssl
 
 try:
     import pymongo
@@ -73,7 +74,15 @@ class MongoDBCollector(diamond.collector.Collector):
                     ' Default is False',
             'replica': 'True to enable replica set logging. Reports health of'
                        ' individual nodes as well as basic aggregate stats.'
-                       ' Default is False'
+                       ' Default is False',
+            'ssl_certfile': 'The certificate file used to identify the local connection against mongod',
+            'ssl_keyfile': 'The private keyfile used to identify the local connection against mongod.',
+            'ssl_pem_passphrase': 'he password or passphrase for decrypting the private key in ssl_certfile or ssl_keyfile. Only necessary if the private key is encrypted.',
+            'ssl_cert_reqs': 'Specifies whether a certificate is required from the other side of the connection, and whether it will be validated if provided.',
+            'ssl_ca_certs': 'The ca_certs file contains a set of concatenated certification authority certificates, which are used to validate certificates passed from the other end of the connection.',
+            'ssl_crlfile': 'The path to a PEM or DER formatted certificate revocation list.',
+            'ssl_match_hostname': 'enables hostname verification',
+            'auth_mechanism': 'SCRAM-SHA-1'
         })
         return config_help
 
@@ -94,7 +103,15 @@ class MongoDBCollector(diamond.collector.Collector):
             'translate_collections': 'False',
             'collection_sample_rate': 1,
             'ssl': False,
-            'replica': False
+            'replica': False,
+            'ssl_certfile': None,
+            'ssl_keyfile': None,
+            'ssl_pem_passphrase': None,
+            'ssl_cert_reqs': ssl.CERT_REQUIRED,
+            'ssl_ca_certs': None,
+            'ssl_crlfile': None,
+            'ssl_match_hostname': True,
+            'auth_mechanism': 'SCRAM-SHA-1'
         })
         return config
 
@@ -155,19 +172,58 @@ class MongoDBCollector(diamond.collector.Collector):
                 if type(self.config['ssl']) is str:
                     self.config['ssl'] = str_to_bool(self.config['ssl'])
 
-                if ReadPreference is None:
-                    conn = pymongo.MongoClient(
-                        host,
-                        socketTimeoutMS=self.config['network_timeout'],
-                        ssl=self.config['ssl'],
-                    )
+                if type(self.config['ssl_match_hostname']) is str:
+                    self.config['ssl_match_hostname'] = str_to_bool(
+                        self.config['ssl_match_hostname'])
+
+                if self.config['ssl']:
+
+                    if ReadPreference is None:
+                        conn = pymongo.MongoClient(
+                            host,
+                            socketTimeoutMS=self.config['network_timeout'],
+                            ssl=self.config['ssl'],
+                            ssl_certfile=self.config['ssl_certfile'],
+                            ssl_keyfile=self.config['ssl_keyfile'],
+                            ssl_pem_passphrase=self.config[
+                                'ssl_pem_passphrase'],
+                            ssl_cert_reqs=self.config['ssl_cert_reqs'],
+                            ssl_ca_certs=self.config['ssl_ca_certs'],
+                            ssl_crlfile=self.config['ssl_crlfile'],
+                            ssl_match_hostname=self.config[
+                                'ssl_match_hostname']
+                        )
+                    else:
+                        conn = pymongo.MongoClient(
+                            host,
+                            socketTimeoutMS=self.config['network_timeout'],
+                            ssl=self.config['ssl'],
+                            read_preference=ReadPreference.SECONDARY,
+                            ssl_certfile=self.config['ssl_certfile'],
+                            ssl_keyfile=self.config['ssl_keyfile'],
+                            ssl_pem_passphrase=self.config[
+                                'ssl_pem_passphrase'],
+                            ssl_cert_reqs=self.config['ssl_cert_reqs'],
+                            ssl_ca_certs=self.config['ssl_ca_certs'],
+                            ssl_crlfile=self.config['ssl_crlfile'],
+                            ssl_match_hostname=self.config[
+                                'ssl_match_hostname']
+                        )
+
                 else:
-                    conn = pymongo.MongoClient(
-                        host,
-                        socketTimeoutMS=self.config['network_timeout'],
-                        ssl=self.config['ssl'],
-                        read_preference=ReadPreference.SECONDARY,
-                    )
+                    if ReadPreference is None:
+                        conn = pymongo.MongoClient(
+                            host,
+                            socketTimeoutMS=self.config['network_timeout'],
+                            ssl=self.config['ssl']
+                        )
+                    else:
+                        conn = pymongo.MongoClient(
+                            host,
+                            socketTimeoutMS=self.config['network_timeout'],
+                            ssl=self.config['ssl']
+                        )
+
             except Exception, e:
                 self.log.error('Couldnt connect to mongodb: %s', e)
                 continue
@@ -175,10 +231,11 @@ class MongoDBCollector(diamond.collector.Collector):
             # try auth
             if user:
                 try:
-                    conn.admin.authenticate(user, passwd)
+                    conn.admin.authenticate(
+                        user, passwd, mechanism=self.config['auth_mechanism'])
                 except Exception, e:
                     self.log.error(
-                        'User auth given, but could not autheticate' +
+                        'User auth given, but could not authenticate' +
                         ' with host: %s, err: %s' % (host, e))
                     return{}
 
@@ -192,7 +249,6 @@ class MongoDBCollector(diamond.collector.Collector):
                     self._publish_replset(replset_data, base_prefix)
                 except pymongo.errors.OperationFailure as e:
                     self.log.error('error getting replica set status', e)
-            self._publish_transformed(data, base_prefix)
 
             self._publish_dict_with_prefix(data, base_prefix)
             db_name_filter = re.compile(self.config['databases'])
