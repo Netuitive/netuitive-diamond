@@ -61,7 +61,7 @@ def get_azure_uuid(starting_uuid):
         d = str(a[2][2:4]) + str(a[2][0:2])
         e = str(a[3])
         f = str(a[4])
-        ret = '{0}-{1}-{2}-{3}-{4}'.format(b, c, d, e, f)
+        ret = '{0}-{1}-{2}-{3}-{4}'.format(b, c, d, e, f).rstrip()
 
     except Exception as e:
         logging.debug(e)
@@ -315,7 +315,7 @@ class NetuitiveHandler(Handler):
                             break
 
                 try:
-                    child = 'VirtualMachine::{0}'.format(my_uuid)
+                    child = 'VirtualMachine:{0}'.format(my_uuid)
                     self.element.add_relation(child)
 
                 except Exception as e:
