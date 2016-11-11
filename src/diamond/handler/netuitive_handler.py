@@ -50,6 +50,25 @@ def get_human_readable_size(num, suffix='B'):
     return(("%.2f %s%s" % (num, 'Y', suffix)).strip())
 
 
+def get_azure_uuid(starting_uuid):
+
+    ret = None
+
+    try:
+        a = starting_uuid.lower().split('-')
+        b = str(a[0][6:8]) + str(a[0][4:6]) + str(a[0][2:4]) + str(a[0][0:2])
+        c = str(a[1][2:4]) + str(a[1][0:2])
+        d = str(a[2][2:4]) + str(a[2][0:2])
+        e = str(a[3])
+        f = str(a[4])
+        ret = '{0}-{1}-{2}-{3}-{4}'.format(b, c, d, e, f)
+
+    except Exception as e:
+        logging.debug(e)
+
+    return(ret)
+
+
 def check_lsb():
 
     if os.path.isfile("/etc/lsb-release"):
@@ -116,6 +135,7 @@ class NetuitiveHandler(Handler):
             self._add_sys_meta()
             self._add_aws_meta()
             self._add_docker_meta()
+            self._add_azure_meta()
             self._add_config_tags()
             self._add_config_relations()
             self._add_collectors()
@@ -271,6 +291,35 @@ class NetuitiveHandler(Handler):
 
             except Exception as e:
                 pass
+
+        except Exception as e:
+            logging.debug(e)
+            pass
+
+    def _add_azure_meta(self):
+        url = 'http://169.254.169.254/metadata/v1/InstanceInfo'
+        uuid_file = '/sys/devices/virtual/dmi/id/product_uuid'
+
+        try:
+
+            if os.path.isfile(uuid_file) and os.access(uuid_file, os.R_OK):
+
+                request = urllib2.Request(url)
+                resp = urllib2.urlopen(request, timeout=1).read()
+                j = json.loads(resp)
+
+                with open(uuid_file) as fp:
+                    for line in fp:
+                        my_uuid = get_azure_uuid(line)
+                        if my_uuid is not None:
+                            break
+
+                try:
+                    child = 'VirtualMachine::{0}'.format(my_uuid)
+                    self.element.add_relation(child)
+
+                except Exception as e:
+                    pass
 
         except Exception as e:
             logging.debug(e)
