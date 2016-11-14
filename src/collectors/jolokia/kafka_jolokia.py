@@ -48,10 +48,10 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         # Update it....
         config_help.update({
             'bin': 'The path to the kafka-run-class.sh script.  Default is /opt/kafka/bin/kafka-run-class.sh',
-            'version': 'The version of Kafka. Two values are accepted here. 8 for Kafka versions 8 and earlier, or 9 for Kafka versions 9 or later. The default is 9.'
+            'version': 'The version of Kafka. Two values are accepted here. 8 for Kafka versions 8 and earlier, or 9 for Kafka versions 9 or later. The default is 9.',
             'zookeeper': 'Zookeper host and port number. If no port number is given, defaults to 2181. If nothing is given, defaults to localhost:2181',
-            'consumer_groups': 'Comma-separated list of consumer groups. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically.'
-            'topics': 'Comma-separated list of consumer topics. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically. If not specified, default is all topics.',
+            'consumer_groups': 'Comma-separated list of consumer groups. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically.',
+            'topics': 'Comma-separated list of consumer topics. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically. If not specified, default is all topics.'
         })
 
         # .... and return it.
@@ -113,24 +113,28 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         #
         ####
 
-        # The "zookeeper" parameter in the config file specifies the Zookeeper host
-        # and port to collect from.  
-        zookeeper = self.config.get('zookeeper')
-        
-        # If the port is not specified, we assume 2181.
-        if (-1 == string.find(zookeeper, ':')):
-            zookeeper = zookeeper + ':2181'
+        try:
+            # The "zookeeper" parameter in the config file specifies the Zookeeper host
+            # and port to collect from.  
+            zookeeper = self.config.get('zookeeper')
+            
+            # If the port is not specified, we assume 2181.
+            if (-1 == string.find(zookeeper, ':')):
+                zookeeper = zookeeper + ':2181'
 
-        # Get the version number from the configuration
-        k_ver = self.config.get('version')
+            # Get the version number from the configuration
+            k_ver = self.config.get('version')
 
-        # Call a different collection routine for the consumer lag metrics, depending on the version of Kafka
-        if (k_ver == '8'):
-            self.collect_consumer_lag_8(zookeeper)
-        elif (k_ver == '9'):
-            self.collect_consumer_lag_9(zookeeper)
-        else:
-            raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "8" for Kafka versions 8 and earlier, or "9" for Kafka versions 9 and later.')
+            # Call a different collection routine for the consumer lag metrics, depending on the version of Kafka
+            if (k_ver == '8'):
+                self.collect_consumer_lag_8(zookeeper)
+            elif (k_ver == '9'):
+                self.collect_consumer_lag_9(zookeeper)
+            else:
+                raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "8" for Kafka versions 8 and earlier, or "9" for Kafka versions 9 and later.')
+
+        except Exception as e:
+            self.log.error('Failed to collect consumer lag metrics from Zookeeper; ensure that your Kafka version is set correctly in the config file. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
 
         ###
         # 
@@ -148,11 +152,20 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         #
         ###
 
-        # Specifcally run the Zookeeper collector
-        ZookeeperCollector.collect(self)
+        try:
+            # Explicitly run the Zookeeper collector
+            ZookeeperCollector.collect(self)
 
-        # And now run the Jolokia collector to get the JMX metrics
-        super(KafkaJolokiaCollector, self).collect()
+        except Exception as e:
+            self.log.error('Failed to collect Zookeeper metrics. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
+
+
+        try:
+            # And now run the Jolokia collector to get the JMX metrics
+            super(KafkaJolokiaCollector, self).collect()
+
+        except Exception as e:
+            self.log.error('Failed to collect Kafka metrics via the Jolokia JMX bridge. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
 
 
     ########
@@ -166,7 +179,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     #
     ########
 
-    def collect_consumer_lag_9(zookeeper):
+    def collect_consumer_lag_9(self, zookeeper):
 
         # Set up the first call to ConsumerGroupCommand, a call to list the consumer groups.
         cmd = [
@@ -206,7 +219,6 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                 if raw_output2 is None:
                     self.log.error('No output returned for consumer group ' + c_group)
                     continue
-    
 
                 ###
                 #
@@ -221,71 +233,15 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                 # Loop through each line of the output.
                 for i2, line in enumerate(raw_output2[0].split('\n')):
     
-                # If the line is blank, or if it is the header line, continue to the next line. 
-                if (line == '' or line[0:5] == 'GROUP'):
-                    continue
-        
-                # Split the line on commas to get the details (the metrics we want).
-                details = string.split(line, ', ')
+                    # If the line is blank, or if it is the header line, continue to the next line. 
+                    if (line == '' or line[0:5] == 'GROUP'):
+                        continue
+            
+                    # Split the line on commas to get the details (the metrics we want).
+                    details = string.split(line, ', ')
 
-                # If there are less than 7, assume this is an error message and not data.
-                # Presumably we will not get an error message with 6 or more commas! :)
-                # If this happens, skip over this consumer group, and move on to the next.
-                if (len(details) < 7):
-                    self.log.error('Error processing consumer group %s - %s', c_group, details[0])
-                    break
-
-                ###
-                #
-                # Each line contains multiple metrics. First, we construct the common base for each metric name.
-                #
-                ###
-
-                # Each metric will start with the alias (typically 'zookeeper'), followed by 'consumer_groups'
-                metric_base = alias + '.consumer_groups'
-
-                # Next up is the consumer group name
-                metric_base = metric_base + '.' + details[0]
-
-                # Followed by the topic name
-                metric_base = metric_base + '.' + details[1]
-
-                # Followed by the partition number, which we preface with "partition-" for readability
-                metric_base = metric_base + '.partition-' + details[2]
-
-                ###
-                #
-                # And now for each of the actual metric names
-                #
-                ###
-
-                # 1) Consumer offet
-                metric_name = metric_base + '.consumer_offset'
-                value = details[3]
-                self.publish(metric_name, value)
-                
-                # 2) Broker offset
-                metric_name = metric_base + '.broker_offset'
-                value = details[4]
-                self.publish(metric_name, value)
-
-                # 3) Consumer lag (which is broker offset minus consumer offset)
-                metric_name = metric_base + '.consumer_lag'
-                value = details[5]
-                self.publish(metric_name, value)
-
-                # 4) Owner - This column from the Zookeeper results has a string with the name of the 
-                # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
-                # indicate whether or not the consumer group has an owner.  
-                metric_name = metric_base + '.has_owner'
-
-                if (details[6].lower() == 'none'):
-                    value = 0
-                else:
-                    value = 1
-
-                self.publish(metric_name, value)
-
+                    # And process the results
+                    self.process_result_row(details)
 
     ########
     #
@@ -298,67 +254,134 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     #
     ########
 
-    def collect_consumer_lag_8(zookeeper):
+    def collect_consumer_lag_8(self, zookeeper):
         try:
 
-            # Get the list of consumer groups, and the list of topics
-            consumer_groups = self.config.get('consumer_groups')
-            topics = self.config.get('topics')
+            # Get the list of consumer groups, and the list of topics. We split the
+            # consumer groups into a list that we can walk through, since each call to
+            # Zookeeper can only specify one group. Topics, however, can have multiple
+            # specified, so we just remove whitespace and keep it as a string.
+            consumer_groups = self.config.get('consumer_groups').split(',')
+            topics = self.config.get('topics').replace(' ', '')
 
-            # If consumer_groups isn't already a list object, convert it 
-            if isinstance(consumer_groups, list) is False:
-                a = consumer_groups
-                consumer_groups = [a]
+            # Get any arguments specified in the config file
+            config_args = self.config.get('args').split(' ')
 
             # Loop through the list of consumer groups; we need to make one call per group
             for consumer_group in consumer_groups:
 
-                # Build the command to execute
-                cmd = [
+                # Build the arguments for the command that we will be executing.  The actual
+                # program or script will be specified by the "bin" parameter in the config file.
+                # Here, we will build the list with the arguments to pass.
+                args = []
+                args += config_args
+                args += [
                     'kafka.tools.ConsumerOffsetChecker',
                     '--group',
                     consumer_group,
                     '--zookeeper',
-                    zookeeper
+                    zookeeper + '/kafka'
                 ]
 
-                # If topics were specified in the config file, add the --topic parameter to the command.
+                # If topics were specified in the config file, add the --topic argument.
                 # If not, the command will default to retrieving the metrics for all topics.
                 if topics:
-                    cmd += '--topic %s' % topics
+                    args += '--topic ' + topics
 
                 # Execute the command and get the raw output.
-                raw_output = self.run_command(cmd)
+                raw_output = self.run_command(args)
 
                 # If there is no output for this consumer group, continue on to the next one.
                 if raw_output is None:
                     continue
 
-                total = 0
                 for i, output in enumerate(raw_output[0].split('\n')):
 
-                    if i == 0:
+                    self.log.error('#### output = ' + output)
+
+                    # If there is no output, or if it's the header line, continue to the next line
+                    if i == 0 or output is None or output == '':
                         continue
 
-                    items = output.strip().split(' ')
-                    metrics = [item for item in items if item]
+                    items = output.split(' ')
+                    details = [item for item in items if item]
 
-                    if not metrics:
-                        continue
-
-                    prefix_keys = metrics[:3]
-                    value = float(metrics[5])
-
-                    if cluster_name:
-                        prefix_keys.insert(0, cluster_name)
-
-                    self.publish('.'.join(prefix_keys), value)
-                    total += value
-
-                self.publish('.'.join(prefix_keys).rsplit('.', 1)[0] + '.total', total)
+                    self.process_result_row(details)
 
         except Exception as e:
             self.log.error(e)
+
+
+
+
+
+
+
+
+    def process_result_row(self, details):
+
+        for i in range(0, len(details)):
+            self.log.error('#### %i - %s', i, details[i])
+
+        # If there are less than 7, assume this is an error message and not data.
+        # Presumably we will not get an error message with 6 or more commas! :)
+        # If this happens, skip over this consumer group, and move on to the next.
+        if (len(details) < 7):
+            self.log.error('Error processing consumer group - %s', details[0])
+            return
+
+        ###
+        #
+        # Each line contains multiple metrics. First, we construct the common base for each metric name.
+        #
+        ###
+
+        # Each metric will start with 'zookeeper.consumer_groups'
+        metric_base = 'zookeeper.consumer_groups'
+
+        # Next up is the consumer group name
+        metric_base = metric_base + '.' + details[0]
+
+        # Followed by the topic name
+        metric_base = metric_base + '.' + details[1]
+
+        # Followed by the partition number, which we preface with "partition-" for readability
+        metric_base = metric_base + '.partition-' + details[2]
+
+        ###
+        #
+        # And now for each of the actual metric names
+        #
+        ###
+
+        # 1) Consumer offet
+        metric_name = metric_base + '.consumer_offset'
+        value = details[3]
+        self.publish(metric_name, value)
+        
+        # 2) Broker offset
+        metric_name = metric_base + '.broker_offset'
+        value = details[4]
+        self.publish(metric_name, value)
+
+        # 3) Consumer lag (which is broker offset minus consumer offset)
+        metric_name = metric_base + '.consumer_lag'
+        value = details[5]
+        self.publish(metric_name, value)
+
+        # 4) Owner - This column from the Zookeeper results has a string with the name of the 
+        # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
+        # indicate whether or not the consumer group has an owner.  
+        metric_name = metric_base + '.has_owner'
+
+        if (details[6].lower() == 'none'):
+            value = 0
+        else:
+            value = 1
+
+        self.publish(metric_name, value)    
+
+
 
 
 
@@ -425,7 +448,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         broker_port=''
         group=''
         thread=''
-	    fetcher=''
+        fetcher=''
 
         # Loop through the array of name-value pairs.
         for i in range(len(kvps)):
@@ -463,8 +486,8 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                     group = '.' + string.replace(kvp[1], '.', '-')
             elif (kvp[0].lower() == 'threadid'):
                     broker = '.' + 'thread-' + string.replace(kvp[1], '.', '-')
-    		elif (kvp[0].lower() == 'fetchertype'):
-	           		fetcher = '.' + string.replace(kvp[1], '.', '-')
+            elif (kvp[0].lower() == 'fetchertype'):
+                    fetcher = '.' + string.replace(kvp[1], '.', '-')
             else:
                     self.log.error('Unknown key name %s for MBean %s', kvps[i], text)
 
@@ -517,8 +540,8 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
 
         # BrokenTopicMetrics contains metrics for each topic.  If no topic is specified, the metrics 
         # are the aggregates across all topics; group them together accordingly.
-	    if (m_type == 'BrokerTopicMetrics') and (topic == ''):
-		    topic = '._all'
+        if (m_type == 'BrokerTopicMetrics') and (topic == ''):
+            topic = '._all'
 
         # Append all of the intermediate components. Not all of these will be present, but those that 
         # are are in the correct hierarchical ordering. 
@@ -528,19 +551,19 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         # Now append the name portion to the metric name.
         metric_name = metric_name + name
 
-    	# If these are RequestMetrics, then the only statistic to keep is the average (mean)
-    	if (m_type == 'RequestMetrics') or (name == '.LeaderElectionRateAndTimeMs'):
-    		# If the remainder is 'Mean', return the metric name, otherwise throw it out
-    		if (remainder == 'Mean'):
-    			metric_name = metric_name
-    		else:
-    			metric_name = ''
-    	else:
-    		# Since these are NOT RequestMetrics, append the remainder unless it is a Value or Count 'statistic'.
-    		if (remainder != '') and (remainder != 'Value') and (remainder != 'Count'):
+        # If these are RequestMetrics, then the only statistic to keep is the average (mean)
+        if (m_type == 'RequestMetrics') or (name == '.LeaderElectionRateAndTimeMs'):
+            # If the remainder is 'Mean', return the metric name, otherwise throw it out
+            if (remainder == 'Mean'):
+                metric_name = metric_name
+            else:
+                metric_name = ''
+        else:
+            # Since these are NOT RequestMetrics, append the remainder unless it is a Value or Count 'statistic'.
+            if (remainder != '') and (remainder != 'Value') and (remainder != 'Count'):
                 metric_name = metric_name + '.' + remainder
-    		else:
-    			metric_name = metric_name
+            else:
+                metric_name = metric_name
 
         # Finally, return the new metric name.
         return metric_name                        
