@@ -28,6 +28,11 @@ Netuitive Change History
                      Bug fix: Don't assume that the value for the "type" key has a dot.
                      Improved error handling such that messages will be very detailed,
                      and any unhandled exceptions will not kill processing.
+    2016/11/29 DVG - Fix for Cassandra 3:
+                        - In Cassandra 2, table metrics were designated by type=ColumnFamily
+                          and scope=<tablename> . In Cassandra 3 it's done in one of two 
+                          ways:  1) type=Tables and table=<tablename>; or 2) type=Table and
+                          scope=<tablename>. The former is far more common.
 
 """
 
@@ -174,6 +179,7 @@ class CassandraJolokiaCollector(JolokiaCollector):
             scope = ''
             colfam = ''
             path = ''
+            table = ''
 
             # Loop through the array of name-value pairs.
             for i in range(len(kvps)):
@@ -195,6 +201,8 @@ class CassandraJolokiaCollector(JolokiaCollector):
                             colfam = '.' + string.replace(kvp[1], '.', '-')
                     elif (kvp[0].lower() == 'path'):
                             path = '.' + string.replace(kvp[1], '.', '-')
+                    elif (kvp[0].lower() == 'table'):
+                            table = '.' + string.replace(kvp[1], '.', '-')
                     else:
                             self.log.error('Unknown key name: %s - This key will be IGNORED in the construction of the metric name.  Full bean name is: %s', kvps[i], text)
                             continue
@@ -208,13 +216,13 @@ class CassandraJolokiaCollector(JolokiaCollector):
                 # If the metric type is a column family metric, then the metric is either:
                 #   1) Associated with a particluar table in a particular keyspace; or
                 #   2) An aggregate across all tables and keyspaces in the Cassandra node.
-                if (m_type == 'ColumnFamily') or (m_type == 'ColumnFamilies'):
+                if (m_type == 'ColumnFamily') or (m_type == 'ColumnFamilies') or (m_type == 'Tables') or (m_type == 'Table'):
                         if (keyspace != ''):
                                 # If the keyspace is not blank, it's a metric for a specific keyspace and table
-                                metric_name = 'Keyspace._Keyspaces' + keyspace + '._Tables' + scope + name
+                                metric_name = 'Keyspace._Keyspaces' + keyspace + '._Tables' + scope + table + name
                         else:
                                 # Otherwise, it's a global aggregate
-                                metric_name = 'Keyspace' + scope + name
+                                metric_name = 'Keyspace' + scope + table + name
                 # If the metric type is a keyspace metric, then the metric is either:
                 #   1) An aggregate across all tables in a particular keyspace; or
                 #   2) An aggregate across all tables and keyspaces in the Cassandra node.
