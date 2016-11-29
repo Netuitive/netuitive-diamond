@@ -20,6 +20,8 @@ two ways:
 
 Netuitive Change History
     2016/10/26 DVG - Initial version.
+    2016/11/16 DVG - Added debug logging, additional error handling, refactoring of common code across the Kafka 8 and 9 handling.
+                     Fixed bug with Zookeeper collector defaulting to localhost:2181
 """
 
 from jolokia import JolokiaCollector
@@ -113,14 +115,16 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         #
         ####
 
+        # The "zookeeper" parameter in the config file specifies the Zookeeper host
+        # and port to collect from.  
+        zookeeper = self.config.get('zookeeper')
+        
+        # If the port is not specified, we assume 2181.
+        if (-1 == string.find(zookeeper, ':')):
+            zookeeper = zookeeper + ':2181'
+
         try:
-            # The "zookeeper" parameter in the config file specifies the Zookeeper host
-            # and port to collect from.  
-            zookeeper = self.config.get('zookeeper')
-            
-            # If the port is not specified, we assume 2181.
-            if (-1 == string.find(zookeeper, ':')):
-                zookeeper = zookeeper + ':2181'
+            self.log.debug('Attempting to collect consumer lag metrics from Zookeeper.')
 
             # Get the version number from the configuration
             k_ver = self.config.get('version')
@@ -134,7 +138,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                 raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "8" for Kafka versions 8 and earlier, or "9" for Kafka versions 9 and later.')
 
         except Exception as e:
-            self.log.error('Failed to collect consumer lag metrics from Zookeeper; ensure that your Kafka version is set correctly in the config file. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
+            self.log.exception('Failed to collect consumer lag metrics from Zookeeper; ensure that your Kafka version is set correctly in the config file. These metrics will be SKIPPED, but processing will continue.')
 
         ###
         # 
@@ -153,19 +157,29 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         ###
 
         try:
+            # The Zookeeper collector expects a parameter called "hosts" to list the hosts
+            # and port numbers to collect from.  Update the default config with this setting,
+            # based on the value we've already determined from our "zookeeper" parameter.
+            # Note that ="zookeeper@" is added to the front as the "alias", which will
+            # ensure that the metrics get listed under "kakfa.zookeeper."
+            self.config.update({'hosts': ['zookeeper@' + zookeeper]})
+
+            self.log.debug('Attempting to collect Zookeeper server metrics from hosts: ' + str(self.config.get('hosts')))
+
             # Explicitly run the Zookeeper collector
             ZookeeperCollector.collect(self)
 
         except Exception as e:
-            self.log.error('Failed to collect Zookeeper metrics. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
-
+            self.log.exception('Failed to collect Zookeeper server metrics. These metrics will be SKIPPED, but processing will continue.')
 
         try:
+            self.log.debug('Attempting to collect Kafka metrics via JMX.')
+
             # And now run the Jolokia collector to get the JMX metrics
             super(KafkaJolokiaCollector, self).collect()
 
         except Exception as e:
-            self.log.error('Failed to collect Kafka metrics via the Jolokia JMX bridge. These metrics will be SKIPPED, but processing will continue.  The full exception text is:\n%s', str(e))
+            self.log.exception('Failed to collect Kafka metrics via the Jolokia JMX bridge. These metrics will be SKIPPED, but processing will continue.')
 
 
     ########
@@ -181,16 +195,21 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
 
     def collect_consumer_lag_9(self, zookeeper):
 
+        self.log.debug('Using Kafka 9+ process.')
+
         # Set up the first call to ConsumerGroupCommand, a call to list the consumer groups.
-        cmd = [
+        args = [
             'kafka.admin.ConsumerGroupCommand',
             '--list',
             '--zookeeper',
             zookeeper
         ]
 
+        self.log.debug('Command is: ' + self.config.get('bin'))
+        self.log.debug('Arguments are: ' + str(args))
+
         # Run the command (via the run_command function of the ProcessCollector)
-        raw_output = self.run_command(cmd)
+        raw_output = self.run_command(args)
 
         # Assuming we get output, process it.
         if raw_output is not None:
@@ -203,7 +222,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                     continue
 
                 # Now prepare the second command, which will get the metrics for the current consumer group.
-                cmd2 = [
+                args2 = [
                     'kafka.admin.ConsumerGroupCommand',
                     '--describe',
                     '--group',
@@ -212,36 +231,20 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                     zookeeper
                 ]
 
+                self.log.debug('Processing consumer group: ' + c_group)
+                self.log.debug('Command is: ' + self.config.get('bin'))
+                self.log.debug('Arguments are: ' + str(args2))
+
                 # Run the command and get the raw output.
-                raw_output2 = self.run_command(cmd2)
+                raw_output2 = self.run_command(args2)
 
                 # If we didn't get anything, log an error and continue on to the next consumer group.
                 if raw_output2 is None:
-                    self.log.error('No output returned for consumer group ' + c_group)
+                    self.log.warning('No output returned for consumer group ' + c_group)
                     continue
 
-                ###
-                #
-                # The output here is typically one line with column headers followed by one or more
-                # lines of statistics for the consumer group.  There will be one line for each
-                # partition of each topic that the consumer is listening on.
-                #
-                # There may, however, be an error message returned instead of the metrics we want.
-                #
-                ###
-
-                # Loop through each line of the output.
-                for i2, line in enumerate(raw_output2[0].split('\n')):
-    
-                    # If the line is blank, or if it is the header line, continue to the next line. 
-                    if (line == '' or line[0:5] == 'GROUP'):
-                        continue
-            
-                    # Split the line on commas to get the details (the metrics we want).
-                    details = string.split(line, ', ')
-
-                    # And process the results
-                    self.process_result_row(details)
+                # Process the results. The fields in each line of the output are separated by a comma and a space.
+                self.process_lag_results(raw_output2, ', ')
 
     ########
     #
@@ -250,11 +253,14 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     # or the topics they are using, hence we require them to be specified in the config 
     # file up front.
     #
-    # 2016-11-03 DVG, from code originally by Shawn Butts
+    # 2016-11-03 DVG
     #
     ########
 
     def collect_consumer_lag_8(self, zookeeper):
+
+        self.log.debug('Using Kafka 8- process.')
+
         try:
 
             # Get the list of consumer groups, and the list of topics. We split the
@@ -264,11 +270,14 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
             consumer_groups = self.config.get('consumer_groups').split(',')
             topics = self.config.get('topics').replace(' ', '')
 
+            self.log.debug('Consumer groups are: ' + str(consumer_groups))
+            self.log.debug('Topics are: ' + topics)
+
             # Get any arguments specified in the config file
             config_args = self.config.get('args').split(' ')
 
             # Loop through the list of consumer groups; we need to make one call per group
-            for consumer_group in consumer_groups:
+            for c_group in consumer_groups:
 
                 # Build the arguments for the command that we will be executing.  The actual
                 # program or script will be specified by the "bin" parameter in the config file.
@@ -278,7 +287,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                 args += [
                     'kafka.tools.ConsumerOffsetChecker',
                     '--group',
-                    consumer_group,
+                    c_group,
                     '--zookeeper',
                     zookeeper + '/kafka'
                 ]
@@ -286,118 +295,123 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
                 # If topics were specified in the config file, add the --topic argument.
                 # If not, the command will default to retrieving the metrics for all topics.
                 if topics:
-                    args += '--topic ' + topics
+                    args += ['--topic', topics]
+
+                self.log.debug('Processing consumer group: ' + c_group)
+                self.log.debug('Command is: ' + self.config.get('bin'))
+                self.log.debug('Arguments are: ' + str(args))                
 
                 # Execute the command and get the raw output.
                 raw_output = self.run_command(args)
 
                 # If there is no output for this consumer group, continue on to the next one.
                 if raw_output is None:
+                    self.log.warning('No output returned for consumer group ' + c_group + ' with topics ' + topics)
                     continue
 
-                for i, output in enumerate(raw_output[0].split('\n')):
-
-                    self.log.error('#### output = ' + output)
-
-                    # If there is no output, or if it's the header line, continue to the next line
-                    if i == 0 or output is None or output == '':
-                        continue
-
-                    items = output.split(' ')
-                    details = [item for item in items if item]
-
-                    self.process_result_row(details)
+                # Process the results. The fields in each line of the output are separated by spaces.
+                self.process_lag_results(raw_output, ' ')
 
         except Exception as e:
-            self.log.error(e)
+            self.log.exception(e)
 
 
+    ########
+    #
+    # The process_lag_resuts() function processes the output obtained from either collect_consumer_lag_8()
+    # or collect_consumer_lag_9().  While the collection mechanisms differ between the two versions, the
+    # outtput is formnatted nearly identially, with the only difference being the separator character used
+    # between the fields.
+    #
+    # The results are typically one line with column headers followed by one or more lines of statistics 
+    # for the consumer group.  There will be one line for each partition of each topic that the consumer 
+    # is listening on.
+    #
+    # There may, however, be an error message returned instead of the metrics we want.
+    #
+    # 2016-11-16 DVG
+    #
+    ########
 
+    def process_lag_results(self, results, sep):
 
+        self.log.debug('Processing consumer lag results.')
 
+        for i, line in enumerate(results[0].split('\n')):
 
+            # If the line is blank, or if it's the header line, continue to the next line
+            if (line is None or line == '' or line[0:5].upper() == 'GROUP'):
+                continue
 
+            self.log.debug('Processing line: ' + line)
 
-    def process_result_row(self, details):
+            # Split each line into multiple items based on the separator.
+            items = line.split(sep)
 
-        for i in range(0, len(details)):
-            self.log.error('#### %i - %s', i, details[i])
+            # With Kafka 8, the separator is a space, which results in a lot of null entries being split out.
+            # This next line filters out any null items.
+            details = [item for item in items if item]
 
-        # If there are less than 7, assume this is an error message and not data.
-        # Presumably we will not get an error message with 6 or more commas! :)
-        # If this happens, skip over this consumer group, and move on to the next.
-        if (len(details) < 7):
-            self.log.error('Error processing consumer group - %s', details[0])
-            return
+            # If there are not exactly 7 items, assume this is an error message and not data.
+            # If this happens, skip over this consumer group, and move on to the next.
+            if (len(details) != 7):
+                self.log.error('Error processing consumer group - %s', details[0])
+                return
 
-        ###
-        #
-        # Each line contains multiple metrics. First, we construct the common base for each metric name.
-        #
-        ###
+            ###
+            #
+            # Each line contains multiple metrics. First, we construct the common base for each metric name.
+            #
+            ###
 
-        # Each metric will start with 'zookeeper.consumer_groups'
-        metric_base = 'zookeeper.consumer_groups'
+            # Each metric will start with 'zookeeper.consumer_groups'
+            metric_base = 'zookeeper.consumer_groups'
 
-        # Next up is the consumer group name
-        metric_base = metric_base + '.' + details[0]
+            # Next up is the consumer group name
+            metric_base = metric_base + '.' + details[0]
 
-        # Followed by the topic name
-        metric_base = metric_base + '.' + details[1]
+            # Followed by the topic name
+            metric_base = metric_base + '.' + details[1]
 
-        # Followed by the partition number, which we preface with "partition-" for readability
-        metric_base = metric_base + '.partition-' + details[2]
+            # Followed by the partition number, which we preface with "partition-" for readability
+            metric_base = metric_base + '.partition-' + details[2]
 
-        ###
-        #
-        # And now for each of the actual metric names
-        #
-        ###
+            ###
+            #
+            # And now for each of the actual metric names
+            #
+            ###
 
-        # 1) Consumer offet
-        metric_name = metric_base + '.consumer_offset'
-        value = details[3]
-        self.publish(metric_name, value)
-        
-        # 2) Broker offset
-        metric_name = metric_base + '.broker_offset'
-        value = details[4]
-        self.publish(metric_name, value)
+            # 1) Consumer offet
+            metric_name = metric_base + '.consumer_offset'
+            value = details[3]
+            self.publish(metric_name, value)
+            self.log.debug('Published metric ' + metric_name + ' with value ' + str(value))
+            
+            # 2) Broker offset
+            metric_name = metric_base + '.broker_offset'
+            value = details[4]
+            self.publish(metric_name, value)
+            self.log.debug('Published metric ' + metric_name + ' with value ' + str(value))
 
-        # 3) Consumer lag (which is broker offset minus consumer offset)
-        metric_name = metric_base + '.consumer_lag'
-        value = details[5]
-        self.publish(metric_name, value)
+            # 3) Consumer lag (which is broker offset minus consumer offset)
+            metric_name = metric_base + '.consumer_lag'
+            value = details[5]
+            self.publish(metric_name, value)
+            self.log.debug('Published metric ' + metric_name + ' with value ' + str(value))
 
-        # 4) Owner - This column from the Zookeeper results has a string with the name of the 
-        # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
-        # indicate whether or not the consumer group has an owner.  
-        metric_name = metric_base + '.has_owner'
+            # 4) Owner - This column from the Zookeeper results has a string with the name of the 
+            # consumer group's owner, or the value 'none'.  We make this into a binary 0/1 to 
+            # indicate whether or not the consumer group has an owner.  
+            metric_name = metric_base + '.has_owner'
 
-        if (details[6].lower() == 'none'):
-            value = 0
-        else:
-            value = 1
+            if (details[6].lower() == 'none'):
+                value = 0
+            else:
+                value = 1
 
-        self.publish(metric_name, value)    
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            self.publish(metric_name, value)    
+            self.log.debug('Published metric ' + metric_name + ' with value ' + str(value))
 
 
     ########
@@ -415,155 +429,163 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
 
     def clean_up(self, text):
 
-        # The MBean name has two main parts separated by a colon.
-        s = string.split(text, ':')
+        try:
+            self.log.debug('Cleaning uo Kafka JMX metric: ' + text)
 
-        # The first part tells us the domain of the MBean; the second part contains all of the JMX keys.
-        domain = s[0]
-        jmx_keys = s[1]
+            # The MBean name has two main parts separated by a colon.
+            s = string.split(text, ':')
 
-        # Use the domain, but minus the "kafka" at the start, since the Jolokia collector will add this
-        if (domain[0:5] == 'kafka'):
-            domain = domain[6:]
-        else:
-            # Use the default Jolokia clean_up if it's not a Kafka domain (most likely it's Java)
-            return super(KafkaJolokiaCollector, self).clean_up(text)
+            # The first part tells us the domain of the MBean; the second part contains all of the JMX keys.
+            domain = s[0]
+            jmx_keys = s[1]
 
-        # Parse the jmx_keys string to split everything out into an array of name-value pairs.
-        kvps = string.split(jmx_keys, ',')
+            # Use the domain, but minus the "kafka" at the start, since the Jolokia collector will add this
+            if (domain[0:5] == 'kafka'):
+                domain = domain[6:]
+            else:
+                # Use the default Jolokia clean_up if it's not a Kafka domain (most likely it's Java)
+                self.log.debug('Domain ' + domain + ' will be handled by the default JMX clean_up() function.')
+                return super(KafkaJolokiaCollector, self).clean_up(text)
 
-        # Initialize the variables that will be used to hold the values from the JXM keys.
-        # Note that there are a lot of keys, but not all of them apply to all metric types.
-        m_type = ''
-        name = ''
-        request = ''
-        topic = ''
-        partition = ''
-        broker=''
-        delayed_op=''
-        network_processor=''
-        processor=''
-        client=''
-        broker_host=''
-        broker_port=''
-        group=''
-        thread=''
-        fetcher=''
+            # Parse the jmx_keys string to split everything out into an array of name-value pairs.
+            kvps = string.split(jmx_keys, ',')
 
-        # Loop through the array of name-value pairs.
-        for i in range(len(kvps)):
-            # Split the pair on the equal sign such that kvp[0] is the key and kvp[1] is the value
-            kvp = string.split(kvps[i], '=')
+            # Initialize the variables that will be used to hold the values from the JXM keys.
+            # Note that there are a lot of keys, but not all of them apply to all metric types.
+            m_type = ''
+            name = ''
+            request = ''
+            topic = ''
+            partition = ''
+            broker=''
+            delayed_op=''
+            network_processor=''
+            processor=''
+            client=''
+            broker_host=''
+            broker_port=''
+            group=''
+            thread=''
+            fetcher=''
+
+            # Loop through the array of name-value pairs.
+            for i in range(len(kvps)):
+                # Split the pair on the equal sign such that kvp[0] is the key and kvp[1] is the value
+                kvp = string.split(kvps[i], '=')
+                
+                # Check the name of the key, and set the appropriate variable accordingly.
+                # In most cases, we'll replace any dots in the values with dashes. We don't do this
+                # for the "type" key, though, as in some cases we need to do further parsing first.
+                if (kvp[0].lower() == 'type'):
+                        m_type = kvp[1]
+                elif (kvp[0].lower() == 'name'):
+                        name = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'request'):
+                        request = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'topic'):
+                        topic = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'partition'):
+                        partition = '.' + 'partition-' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'broker-id'):
+                        broker = '.' + 'broker-' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'networkprocessor'):
+                        network_processor = '.' + 'networkprocessor-' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'processor'):
+                        processor = '.' + 'processor-' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'clientid' or kvp[0].lower() == 'client-id'):
+                        client = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'delayedoperation'):
+                        delayed_op = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'brokerhost'):
+                        broker_host = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'brokerport'):
+                        broker_port = string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'groupid'):
+                        group = '.' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'threadid'):
+                        broker = '.' + 'thread-' + string.replace(kvp[1], '.', '-')
+                elif (kvp[0].lower() == 'fetchertype'):
+                        fetcher = '.' + string.replace(kvp[1], '.', '-')
+                else:
+                        self.log.error('Unknown key name %s for MBean %s', kvps[i], text)
+
+            # The type parameter will occassionally have additional qualifiers to the metric, such
+            # as a statistic, which should get appended after the metric name.
+            remainder=''
+            dot_index = string.find(m_type, '.')
+            if (-1 != dot_index):
+                # If there was a dot, parse out the remainder, and strip it off the jmx_keys
+                remainder = m_type[dot_index+1:]
+                m_type = m_type[:dot_index]
+
+            # Next we do some mapping of the types for consistent capitalization/punctuation
+            # as well as for better grouping.
+            if (-1 != string.find(m_type.lower(), 'logcleaner')):
+                m_type = 'LogCleaner'
+            elif ((-1 != string.find(m_type.lower(), 'socket')) | (m_type.lower()=='processor')):
+                m_type = 'SocketServer'
+            elif (-1 != string.find(m_type.lower(), 'controller-channel-metrics')):
+                m_type = 'ControllerStats'
+            elif (-1 != string.find(m_type.lower(), 'kafka-metrics-count')):
+                m_type = 'KafkaServer'
+            elif (m_type.lower() == 'partition'):
+                m_type = ''
+            elif ((m_type.lower() == 'controllerstats') or (m_type.lower() == 'kafkacontroller')):
+                m_type = ''
+                domain='controller'
+            elif (m_type.lower() == 'log'):
+                m_type = 'Topics'
+            elif (m_type.lower() == 'socketserver'):
+                domain = 'network'
+
+            # Create a single string from the broker_host and broker port, if they were provided.
+            broker_hp=''
+            if (broker_host != '' and broker_port != ''):
+                broker_hp = broker_host + '-' + broker_port
+
+            ###
+            #
+            # And now it's time to compose the metric name.
+            #
+            ###
+
+            # Start with the domain
+            metric_name = domain
+
+            # Next is the type (if any)
+            if (m_type != ''):
+                metric_name = domain + '.' + m_type 
+
+            # BrokenTopicMetrics contains metrics for each topic.  If no topic is specified, the metrics 
+            # are the aggregates across all topics; group them together accordingly.
+            if (m_type == 'BrokerTopicMetrics') and (topic == ''):
+                topic = '._all'
+
+            # Append all of the intermediate components. Not all of these will be present, but those that 
+            # are are in the correct hierarchical ordering. 
+            metric_name = metric_name + request + broker_hp + group + client + thread
+            metric_name = metric_name + delayed_op + topic + partition + broker + processor + network_processor 
             
-            # Check the name of the key, and set the appropriate variable accordingly.
-            # In most cases, we'll replace any dots in the values with dashes. We don't do this
-            # for the "type" key, though, as in some cases we need to do further parsing first.
-            if (kvp[0].lower() == 'type'):
-                    m_type = kvp[1]
-            elif (kvp[0].lower() == 'name'):
-                    name = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'request'):
-                    request = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'topic'):
-                    topic = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'partition'):
-                    partition = '.' + 'partition-' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'broker-id'):
-                    broker = '.' + 'broker-' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'networkprocessor'):
-                    network_processor = '.' + 'networkprocessor-' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'processor'):
-                    processor = '.' + 'processor-' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'clientid' or kvp[0].lower() == 'client-id'):
-                    client = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'delayedoperation'):
-                    delayed_op = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'brokerhost'):
-                    broker_host = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'brokerport'):
-                    broker_port = string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'groupid'):
-                    group = '.' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'threadid'):
-                    broker = '.' + 'thread-' + string.replace(kvp[1], '.', '-')
-            elif (kvp[0].lower() == 'fetchertype'):
-                    fetcher = '.' + string.replace(kvp[1], '.', '-')
+            # Now append the name portion to the metric name.
+            metric_name = metric_name + name
+
+            # If these are RequestMetrics, then the only statistic to keep is the average (mean)
+            if (m_type == 'RequestMetrics') or (name == '.LeaderElectionRateAndTimeMs'):
+                # If the remainder is 'Mean', return the metric name, otherwise throw it out
+                if (remainder == 'Mean'):
+                    metric_name = metric_name
+                else:
+                    metric_name = ''
             else:
-                    self.log.error('Unknown key name %s for MBean %s', kvps[i], text)
+                # Since these are NOT RequestMetrics, append the remainder unless it is a Value or Count 'statistic'.
+                if (remainder != '') and (remainder != 'Value') and (remainder != 'Count'):
+                    metric_name = metric_name + '.' + remainder
+                else:
+                    metric_name = metric_name
 
-        # The type parameter will occassionally have additional qualifiers to the metric, such
-        # as a statistic, which should get appended after the metric name.
-        remainder=''
-        dot_index = string.find(m_type, '.')
-        if (-1 != dot_index):
-            # If there was a dot, parse out the remainder, and strip it off the jmx_keys
-            remainder = m_type[dot_index+1:]
-            m_type = m_type[:dot_index]
+            # Finally, return the new metric name.
+            self.log.debug('Returned cleaned-up metric name: ' + metric_name)
+            return metric_name                        
 
-        # Next we do some mapping of the types for consistent capitalization/punctuation
-        # as well as for better grouping.
-        if (-1 != string.find(m_type.lower(), 'logcleaner')):
-            m_type = 'LogCleaner'
-        elif ((-1 != string.find(m_type.lower(), 'socket')) | (m_type.lower()=='processor')):
-            m_type = 'SocketServer'
-        elif (-1 != string.find(m_type.lower(), 'controller-channel-metrics')):
-            m_type = 'ControllerStats'
-        elif (-1 != string.find(m_type.lower(), 'kafka-metrics-count')):
-            m_type = 'KafkaServer'
-        elif (m_type.lower() == 'partition'):
-            m_type = ''
-        elif ((m_type.lower() == 'controllerstats') or (m_type.lower() == 'kafkacontroller')):
-            m_type = ''
-            domain='controller'
-        elif (m_type.lower() == 'log'):
-            m_type = 'Topics'
-        elif (m_type.lower() == 'socketserver'):
-            domain = 'network'
-
-        # Create a single string from the broker_host and broker port, if they were provided.
-        broker_hp=''
-        if (broker_host != '' and broker_port != ''):
-            broker_hp = broker_host + '-' + broker_port
-
-        ###
-        #
-        # And now it's time to compose the metric name.
-        #
-        ###
-
-        # Start with the domain
-        metric_name = domain
-
-        # Next is the type (if any)
-        if (m_type != ''):
-            metric_name = domain + '.' + m_type 
-
-        # BrokenTopicMetrics contains metrics for each topic.  If no topic is specified, the metrics 
-        # are the aggregates across all topics; group them together accordingly.
-        if (m_type == 'BrokerTopicMetrics') and (topic == ''):
-            topic = '._all'
-
-        # Append all of the intermediate components. Not all of these will be present, but those that 
-        # are are in the correct hierarchical ordering. 
-        metric_name = metric_name + request + broker_hp + group + client + thread
-        metric_name = metric_name + delayed_op + topic + partition + broker + processor + network_processor 
-        
-        # Now append the name portion to the metric name.
-        metric_name = metric_name + name
-
-        # If these are RequestMetrics, then the only statistic to keep is the average (mean)
-        if (m_type == 'RequestMetrics') or (name == '.LeaderElectionRateAndTimeMs'):
-            # If the remainder is 'Mean', return the metric name, otherwise throw it out
-            if (remainder == 'Mean'):
-                metric_name = metric_name
-            else:
-                metric_name = ''
-        else:
-            # Since these are NOT RequestMetrics, append the remainder unless it is a Value or Count 'statistic'.
-            if (remainder != '') and (remainder != 'Value') and (remainder != 'Count'):
-                metric_name = metric_name + '.' + remainder
-            else:
-                metric_name = metric_name
-
-        # Finally, return the new metric name.
-        return metric_name                        
+        except Exception as e:
+            self.log.exception('Exception occurred while processing metric ' + test + '\nProcessing of other metrics will continue.')
