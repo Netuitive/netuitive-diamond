@@ -148,11 +148,12 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         #
         # For the Zookeeper server stats, we would like to collect via JMX for 
         # consistency, but 2 of the metrics are not published to JMX. Therefore, 
-        # we will invoke the ZookeeperCollector, which uses a command line utility
-        # to collect the server stats.
+        # we will invoke the ZookeeperCollector, which talks directly to the
+        # Zookeeper port.
         #
         # For the Kakfa stats, well, that's the main purpose of this class, so we
-        # invoke the super-class collector on Jolokia to kick off the JMX collection.
+        # invoke the super-class collect() function on Jolokia to kick off the JMX 
+        # collection.
         #
         ###
 
@@ -320,7 +321,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     #
     # The process_lag_resuts() function processes the output obtained from either collect_consumer_lag_8()
     # or collect_consumer_lag_9().  While the collection mechanisms differ between the two versions, the
-    # outtput is formnatted nearly identially, with the only difference being the separator character used
+    # outtput is formnatted nearly identically, with the only difference being the separator character used
     # between the fields.
     #
     # The results are typically one line with column headers followed by one or more lines of statistics 
