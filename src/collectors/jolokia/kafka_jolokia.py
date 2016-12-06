@@ -22,16 +22,30 @@ Netuitive Change History
     2016/10/26 DVG - Initial version.
     2016/11/16 DVG - Added debug logging, additional error handling, refactoring of common code across the Kafka 8 and 9 handling.
                      Fixed bug with Zookeeper collector defaulting to localhost:2181
+    2016/11/30 DVG - Code cleanup: fixed misspelled variable name in an exception handler, removed unused imports.
+                     Made the "version" parameter a required field in the config file; there is no longer a default value.
+                     The "version" parameter must now explicitly state the major version number (0.8, 0.9, or 0.10).
+                     Added "chroot" parameter to the config file to specify the path to the Kafka file on the Zookeeper instance.
+    2016/12/01 DVG - Bug fix: Add the "fetcherType" to the metric name, where applicable.
+                     Reduced complexity by removing the inheritance from ProcessCollector and adding the run_command function here.
+                     Added 'use_sudo' parameter to the config file.
+    2016/12/06 DVG - Cleaned up the run_command function so that it will kill the process it started if we receive an interrupt.
+                     Reduced complexity by removing the inheritance from ZookeeperCollector and adding the collection code here.
 """
 
-from jolokia import JolokiaCollector
-from zookeeper import ZookeeperCollector
-from diamond.collector import ProcessCollector
-import math
 import string
+import os
+import subprocess
+import socket
 import re
 
-class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollector):
+from diamond.utils.signals import SIGALRMException
+from diamond.collector import str_to_bool
+
+from jolokia import JolokiaCollector
+
+
+class KafkaJolokiaCollector(JolokiaCollector):
 
     ########
     #
@@ -50,10 +64,12 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         # Update it....
         config_help.update({
             'bin': 'The path to the kafka-run-class.sh script.  Default is /opt/kafka/bin/kafka-run-class.sh',
-            'version': 'The version of Kafka. Two values are accepted here. 8 for Kafka versions 8 and earlier, or 9 for Kafka versions 9 or later. The default is 9.',
+            'version': 'The version of Kafka. Three values are accepted here: 0.8, 0.9, or 0.10.  There is no default value; if not specified, an error will be logged, Kafka metrics will still be collected, but Zookeeper metrics (including consumer lag) will not.',
             'zookeeper': 'Zookeper host and port number. If no port number is given, defaults to 2181. If nothing is given, defaults to localhost:2181',
-            'consumer_groups': 'Comma-separated list of consumer groups. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically.',
-            'topics': 'Comma-separated list of consumer topics. This is only required for Kafka versions 8 and earlier; with Kafka 9 and higher we can discover these dynamically. If not specified, default is all topics.'
+            'consumer_groups': 'Comma-separated list of consumer groups. This is only required for Kafka versions 0.8 and earlier; with Kafka 0.9 and higher we can discover these dynamically.',
+            'topics': 'Comma-separated list of consumer topics. This is only required for Kafka versions 0.8 and earlier; with Kafka 0.9 and higher we can discover these dynamically. If not specified, default is all topics.',
+            'chroot': 'The path to the Kafka data on the Zookeeper instance. If not specified, this will default to "/kafka" for Kafka 0.8 and to nothing for Kafka 0.9 and 0.10',
+            'use_sudo': 'If set to true, will use sudo to execute kafka-run-class.sh script. Default is false.'
         })
 
         # .... and return it.
@@ -81,8 +97,8 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         config.update({
             'path': 'kafka',
             'bin': '/opt/kafka/bin/kafka-run-class.sh',
-            'version': '8',
-            'zookeeper': 'localhost:2181'
+            'zookeeper': 'localhost:2181',
+            'use_sudo' : 'false'
         })
 
         # ....and return it.
@@ -115,13 +131,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         #
         ####
 
-        # The "zookeeper" parameter in the config file specifies the Zookeeper host
-        # and port to collect from.  
-        zookeeper = self.config.get('zookeeper')
-        
-        # If the port is not specified, we assume 2181.
-        if (-1 == string.find(zookeeper, ':')):
-            zookeeper = zookeeper + ':2181'
+        zookeeper = ''
 
         try:
             self.log.debug('Attempting to collect consumer lag metrics from Zookeeper.')
@@ -129,16 +139,41 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
             # Get the version number from the configuration
             k_ver = self.config.get('version')
 
-            # Call a different collection routine for the consumer lag metrics, depending on the version of Kafka
-            if (k_ver == '8'):
-                self.collect_consumer_lag_8(zookeeper)
-            elif (k_ver == '9'):
-                self.collect_consumer_lag_9(zookeeper)
+            if (k_ver is not None):
+
+                # The "zookeeper" parameter in the config file specifies the Zookeeper host
+                # and port to collect from.  
+                zookeeper = self.config.get('zookeeper')
+                
+                # If the port is not specified, we assume 2181.
+                if (-1 == string.find(zookeeper, ':')):
+                    zookeeper = zookeeper + ':2181'
+
+                # The "chroot" parameter specifies the path on the Zookeeper host where Kafka is located.
+                chroot = self.config.get('chroot')
+
+                # If chroot was specified, use it.
+                if (chroot is not None):
+                    # If the first character of chroot is not "/", make sure we add that first.
+                    if (chroot[0] != '/'):
+                        zookeeper = zookeeper + '/'
+                    zookeeper = zookeeper + chroot
+
+                # Call a different collection routine for the consumer lag metrics, depending on the version of Kafka
+                # For Kafka 0.8 only, if chroot was not specified, default to "/kafka"
+                if (k_ver == '0.8'):
+                    if (chroot is None):
+                        zookeeper = zookeeper + '/kafka'
+                    self.collect_consumer_lag_8(zookeeper)
+                elif ((k_ver == '0.9') or (k_ver == '0.10')):
+                    self.collect_consumer_lag_9(zookeeper)
+                else:
+                    raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "0.8", "0.9", and "0.10".')
             else:
-                raise ValueError('The value "' + k_ver + '" given for the "version" parameter is not valid. Accepted values are "8" for Kafka versions 8 and earlier, or "9" for Kafka versions 9 and later.')
+                raise ValueError('The "version" parameter was not specified in the ccollector onfig file. Accepted values are "0.8", "0.9", and "0.10".')
 
         except Exception as e:
-            self.log.exception('Failed to collect consumer lag metrics from Zookeeper; ensure that your Kafka version is set correctly in the config file. These metrics will be SKIPPED, but processing will continue.')
+            self.log.exception('Failed to collect consumer lag metrics from Zookeeper; ensure that the settings in your config file are correct. These metrics will be SKIPPED, but processing will continue.')
 
         ###
         # 
@@ -158,17 +193,11 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
         ###
 
         try:
-            # The Zookeeper collector expects a parameter called "hosts" to list the hosts
-            # and port numbers to collect from.  Update the default config with this setting,
-            # based on the value we've already determined from our "zookeeper" parameter.
+            self.log.debug('Attempting to collect Zookeeper server metrics from host: ' + zookeeper)
+
             # Note that ="zookeeper@" is added to the front as the "alias", which will
             # ensure that the metrics get listed under "kakfa.zookeeper."
-            self.config.update({'hosts': ['zookeeper@' + zookeeper]})
-
-            self.log.debug('Attempting to collect Zookeeper server metrics from hosts: ' + str(self.config.get('hosts')))
-
-            # Explicitly run the Zookeeper collector
-            ZookeeperCollector.collect(self)
+            self.collect_zookeeper('zookeeper@' + zookeeper)
 
         except Exception as e:
             self.log.exception('Failed to collect Zookeeper server metrics. These metrics will be SKIPPED, but processing will continue.')
@@ -186,7 +215,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     ########
     #
     # The collect_consumer_lag_9() function collects the consumer lag metrics for Kafka
-    # versions 9 and above. Version 9 introduced the kafka.admin.ConsumerGroupCommand
+    # versions 0.9 and above. Version 0.9 introduced the kafka.admin.ConsumerGroupCommand
     # class which allows us to discover the consumer groups and the topics they are 
     # using, rather than requiring them to be specified in the config file up front.
     #
@@ -250,7 +279,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     ########
     #
     # The collect_consumer_lag_8() function collects the consumer lag metrics for Kafka
-    # versions 8 and below. Version 8 did not have a way to discover the consumer groups 
+    # versions 0.8 and below. Version 0.8 did not have a way to discover the consumer groups 
     # or the topics they are using, hence we require them to be specified in the config 
     # file up front.
     #
@@ -431,7 +460,7 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
     def clean_up(self, text):
 
         try:
-            self.log.debug('Cleaning uo Kafka JMX metric: ' + text)
+            self.log.debug('Cleaning up Kafka JMX metric: ' + text)
 
             # The MBean name has two main parts separated by a colon.
             s = string.split(text, ':')
@@ -564,29 +593,156 @@ class KafkaJolokiaCollector(JolokiaCollector, ProcessCollector, ZookeeperCollect
 
             # Append all of the intermediate components. Not all of these will be present, but those that 
             # are are in the correct hierarchical ordering. 
-            metric_name = metric_name + request + broker_hp + group + client + thread
+            metric_name = metric_name + fetcher + request + broker_hp + group + client + thread
             metric_name = metric_name + delayed_op + topic + partition + broker + processor + network_processor 
             
             # Now append the name portion to the metric name.
             metric_name = metric_name + name
 
-            # If these are RequestMetrics, then the only statistic to keep is the average (mean)
-            if (m_type == 'RequestMetrics') or (name == '.LeaderElectionRateAndTimeMs'):
-                # If the remainder is 'Mean', return the metric name, otherwise throw it out
-                if (remainder == 'Mean'):
-                    metric_name = metric_name
-                else:
-                    metric_name = ''
+            # Append the remainder unless it is a Value 'statistic'.
+            if (remainder != '') and (remainder != 'Value'):
+                metric_name = metric_name + '.' + remainder
             else:
-                # Since these are NOT RequestMetrics, append the remainder unless it is a Value or Count 'statistic'.
-                if (remainder != '') and (remainder != 'Value') and (remainder != 'Count'):
-                    metric_name = metric_name + '.' + remainder
-                else:
-                    metric_name = metric_name
+                metric_name = metric_name
 
             # Finally, return the new metric name.
             self.log.debug('Returned cleaned-up metric name: ' + metric_name)
             return metric_name                        
 
         except Exception as e:
-            self.log.exception('Exception occurred while processing metric ' + test + '\nProcessing of other metrics will continue.')
+            self.log.exception('Exception occurred while processing metric ' + text + '\nProcessing of other metrics will continue.')
+
+
+    ########
+    #
+    # The run_command function runs a command and returns either the output (if successful) or None (if not).
+    #
+    # This function was copied and improved from the ProcessCollector.  It is used to execute the command line
+    # calls required to fetch consumer lag metrics from Zookeeper
+    #
+    #
+    # 2016-11-01 DVG
+    #
+    ########
+
+    def run_command(self, args):
+
+        # First make sure that the bin parameter has been specified and that it points to an executable file.
+        if 'bin' not in self.config:
+            raise Exception('config does not have any binary configured')
+        if not os.access(self.config['bin'], os.X_OK):
+            raise Exception('%s is not executable' % self.config['bin'])
+
+        # Command is the command to execute, which we initialize with the arguments, then prepend the bin string, then prepend the sudo command (if applicable)
+        command = args
+        command.insert(0, self.config['bin'])
+        if str_to_bool(self.config['use_sudo']):
+            command.insert(0, self.config['sudo_cmd'])
+
+        # The variable proc will hold the process object 
+        proc = None
+
+        # In the try block, we will try to execute the command and fetch the results. If we succeed, we return the output from the process; if we fail, we return None.
+        try:
+            self.log.debug('Running command: {0}'.format(command))
+            proc = subprocess.Popen(command, stdout=subprocess.PIPE)
+            
+            self.log.debug('Attempting to get results from process {0}'.format(proc.pid))
+            out, err = proc.communicate()
+
+            self.log.debug('Got results from process {0}'.format(proc.pid))
+            return (out, err)
+        
+        except SIGALRMException as ex:
+            self.log.exception("Timed out waiting for subprocess to complete.  Process {0} will be killed.  Command was: {1}".format(proc.pid, command))
+
+            proc.kill()
+            self.log.debug("Killed process {0}".format(proc.pid))
+
+            return None
+
+        except OSError:
+            self.log.exception("Unable to run %s", command)
+            return None
+
+        except:
+            self.log.exception("Something unexpected happened running command %s", command)
+            return None
+
+    ########
+    #
+    # The collect_zookeeper function will connect to the Zookeeper port and request server stats.
+    #
+    # This function was copied and improved from the ZookeeperCollector.  
+    #
+    # 2016-11-06 DVG
+    #
+    ########
+
+    def collect_zookeeper(self, host):
+
+        # Parse the host string to get alias, hostname (or IP), and port.
+        matches = re.search('((.+)\@)?([^:]+)(:(\d+))?', host)
+        alias = matches.group(2)
+        hostname = matches.group(3)
+        port = matches.group(5)
+
+        # Get the stats
+        stats = self.get_stats(hostname, port)
+
+        # If we got a response, loop through all the stats and publish them as metrics, prepended with the alias.
+        if stats is not None:
+            for stat in stats:
+                if alias is not None:
+                    self.publish(alias + "." + stat, stats[stat])
+                else:
+                    self.publish(stat, stats[stat])
+
+    ########
+    #
+    # The get_stats function is called by collect_zookeeper to actually fetch the stats from Zookeeper.
+    #
+    # This function was copied and improved from the ZookeeperCollector.  
+    #
+    # 2016-11-06 DVG
+    #
+    ########
+
+    def get_stats(self, host, port):
+
+        # Ignore the following stats as they don't make goos metrics.
+        ignored = ('zk_version', 'zk_server_state')
+
+        stats = {}
+
+        try:
+            # Open a socket to communicate to the Zookeeper host
+            if port is None:
+                sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+                sock.connect(host)
+            else:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.connect((host, int(port)))
+
+            # Send the command to request the stats
+            sock.send('mntr\n')
+
+            # Read the response; 4096 should be a sufficient size
+            data = sock.recv(4096)
+
+            # Parse the response to get the stats out
+            for line in data.splitlines():
+
+                pieces = line.split()
+
+                if pieces[0] in ignored:
+                    continue
+                stats[pieces[0]] = pieces[1]
+
+            # Return the stats
+            return stats
+
+        # If we get a socket exception, log it, and then return None
+        except socket.error:
+            self.log.exception('Failed to get stats from %s:%s', host, port)
+            return None
