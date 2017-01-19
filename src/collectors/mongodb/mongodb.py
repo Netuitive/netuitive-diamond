@@ -20,6 +20,11 @@ MongoDBCollector.conf
     enabled = True
     hosts = localhost:27017, alias1@localhost:27018, etc
 ```
+
+Netuitive Change History
+    2017/01/10 DVG - Removed "per_sec" from the names of COUNTER metrics. This was being added in back when 
+                        the agent was converting COUNTERs into per-second rates.
+
 """
 
 import diamond.collector
@@ -299,20 +304,20 @@ class MongoDBCollector(diamond.collector.Collector):
     def _publish_transformed(self, data, base_prefix):
         """ Publish values of type: counter or percent """
         self._publish_dict_with_prefix(data.get('opcounters', {}),
-                                       base_prefix + ['opcounters_per_sec'],
+                                       base_prefix + ['opcounters'],
                                        self.publish_counter)
         self._publish_dict_with_prefix(data.get('opcountersRepl', {}),
                                        base_prefix +
-                                       ['opcountersRepl_per_sec'],
+                                       ['opcountersRepl'],
                                        self.publish_counter)
-        self._publish_metrics(base_prefix + ['backgroundFlushing_per_sec'],
+        self._publish_metrics(base_prefix + ['backgroundFlushing'],
                               'flushes',
                               data.get('backgroundFlushing', {}),
                               self.publish_counter)
         self._publish_dict_with_prefix(data.get('network', {}),
-                                       base_prefix + ['network_per_sec'],
+                                       base_prefix + ['network'],
                                        self.publish_counter)
-        self._publish_metrics(base_prefix + ['extra_info_per_sec'],
+        self._publish_metrics(base_prefix + ['extra_info'],
                               'page_faults',
                               data.get('extra_info', {}),
                               self.publish_counter)
