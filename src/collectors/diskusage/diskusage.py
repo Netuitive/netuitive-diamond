@@ -45,7 +45,7 @@ class DiskUsageCollector(diamond.collector.Collector):
         config_help = super(DiskUsageCollector, self).get_default_config_help()
         config_help.update({
             'devices': "A regex of which devices to gather metrics for." +
-                       " Defaults to md, sd, xvd, disk, and dm devices",
+                       "Defaults to md, sd, xvd, disk, dm, and nvme devices",
             'sector_size': 'The size to use to calculate sector usage',
             'send_zero': 'Send io data even when there is no io',
         })
@@ -63,7 +63,8 @@ class DiskUsageCollector(diamond.collector.Collector):
                          '|sd[a-z]+[0-9]*$' +
                          '|x?vd[a-z]+[0-9]*$' +
                          '|disk[0-9]+$' +
-                         '|dm\-[0-9]+$'),
+                         '|dm\-[0-9]+$' +
+                         '|nvme[0-9]+[a-z]+[0-9].*$'),
             'sector_size': 512,
             'send_zero': False,
         })
