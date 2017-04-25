@@ -55,45 +55,47 @@ class KafkaConsumerLagCollector(diamond.collector.ProcessCollector):
 
             for consumer_group in consumer_groups:
 
-                cmd = [
-                    'kafka.tools.ConsumerOffsetChecker',
-                    '--group',
-                    consumer_group,
-                    '--zookeeper',
-                    zookeeper
-                ]
-
-                if topic:
-                    cmd += '--topic %s' % topic
-
-                raw_output = self.run_command(cmd)
-
-                if raw_output is None:
-                    return
-
-                total = 0
-                for i, output in enumerate(raw_output[0].split('\n')):
-
-                    if i == 0:
-                        continue
-
-                    items = output.strip().split(' ')
-                    metrics = [item for item in items if item]
-
-                    if not metrics:
-                        continue
-
-                    prefix_keys = metrics[:3]
-                    value = float(metrics[5])
-
-                    if cluster_name:
-                        prefix_keys.insert(0, cluster_name)
-
-                    self.publish('.'.join(prefix_keys), value)
-                    total += value
-
-                self.publish('.'.join(prefix_keys).rsplit(
-                    '.', 1)[0] + '.total', total)
+                try:
+                    cmd = [
+                        'kafka.tools.ConsumerOffsetChecker',
+                        '--group',
+                        consumer_group,
+                        '--zookeeper',
+                        zookeeper
+                    ]
+    
+                    if topic:
+                        cmd += '--topic %s' % topic
+    
+                    raw_output = self.run_command(cmd)
+    
+                    if raw_output is None:
+                        return
+    
+                    total = 0
+                    for i, output in enumerate(raw_output[0].split('\n')):
+    
+                        if i == 0:
+                            continue
+    
+                        items = output.strip().split(' ')
+                        metrics = [item for item in items if item]
+                        if not metrics:
+                            continue
+    
+                        prefix_keys = metrics[:3]
+                        value = float(metrics[5])
+    
+                        if cluster_name:
+                            prefix_keys.insert(0, cluster_name)
+    
+                        self.publish('.'.join(prefix_keys), value)
+                        total += value
+    
+                    self.publish('.'.join(prefix_keys).rsplit(
+                        '.', 1)[0] + '.total', total)
+                except Exception as e:
+                    self.log.error(e)
 
         except Exception as e:
             self.log.error(e)
