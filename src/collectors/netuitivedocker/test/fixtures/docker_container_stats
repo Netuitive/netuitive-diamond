@@ -1,0 +1,212 @@
+{
+  "read": "2017-05-03T18:13:37.639647812Z",
+  "precpu_stats": {
+    "cpu_usage": {
+      "total_usage": 2387466446741,
+      "percpu_usage": [
+        1025970383701,
+        1361496063040,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "usage_in_kernelmode": 265760000000,
+      "usage_in_usermode": 1889600000000
+    },
+    "system_cpu_usage": 2340425750000000,
+    "throttling_data": {
+      "periods": 261033,
+      "throttled_periods": 19515,
+      "throttled_time": 1104916607994
+    }
+  },
+  "cpu_stats": {
+    "cpu_usage": {
+      "total_usage": 2387614597843,
+      "percpu_usage": [
+        1026097122891,
+        1361517474952,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "usage_in_kernelmode": 265790000000,
+      "usage_in_usermode": 1889720000000
+    },
+    "system_cpu_usage": 2340427730000000,
+    "throttling_data": {
+      "periods": 261043,
+      "throttled_periods": 19516,
+      "throttled_time": 1104996575045
+    }
+  },
+  "memory_stats": {
+    "usage": 341712896,
+    "max_usage": 343592960,
+    "stats": {
+      "active_anon": 152625152,
+      "active_file": 10948608,
+      "cache": 46673920,
+      "dirty": 0,
+      "hierarchical_memory_limit": 1073741824,
+      "hierarchical_memsw_limit": 2147483648,
+      "inactive_anon": 0,
+      "inactive_file": 35725312,
+      "mapped_file": 5922816,
+      "pgfault": 176602,
+      "pgmajfault": 154,
+      "pgpgin": 164612,
+      "pgpgout": 119021,
+      "rss": 152625152,
+      "rss_huge": 12582912,
+      "swap": 0,
+      "total_active_anon": 152625152,
+      "total_active_file": 10948608,
+      "total_cache": 46673920,
+      "total_dirty": 0,
+      "total_inactive_anon": 0,
+      "total_inactive_file": 35725312,
+      "total_mapped_file": 5922816,
+      "total_pgfault": 176602,
+      "total_pgmajfault": 154,
+      "total_pgpgin": 164612,
+      "total_pgpgout": 119021,
+      "total_rss": 152625152,
+      "total_rss_huge": 12582912,
+      "total_swap": 0,
+      "total_unevictable": 0,
+      "total_writeback": 0,
+      "unevictable": 0,
+      "writeback": 0
+    },
+    "failcnt": 0,
+    "limit": 1073741824
+  },
+  "blkio_stats": {
+    "io_service_bytes_recursive": [
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Read",
+        "value": 35631104
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Write",
+        "value": 57344
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Sync",
+        "value": 0
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Async",
+        "value": 35688448
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Total",
+        "value": 35688448
+      }
+    ],
+    "io_serviced_recursive": [
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Read",
+        "value": 3172
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Write",
+        "value": 7
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Sync",
+        "value": 0
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Async",
+        "value": 3179
+      },
+      {
+        "major": 202,
+        "minor": 0,
+        "op": "Total",
+        "value": 3179
+      }
+    ],
+    "io_queue_recursive": [],
+    "io_service_time_recursive": [],
+    "io_wait_time_recursive": [],
+    "io_merged_recursive": [],
+    "io_time_recursive": [],
+    "sectors_recursive": []
+  },
+  "pids_stats": {
+    "current": 22
+  },
+  "networks": {
+    "eth0": {
+      "rx_bytes": 1570713649,
+      "rx_packets": 15317254,
+      "rx_errors": 0,
+      "rx_dropped": 0,
+      "tx_bytes": 27458,
+      "tx_packets": 627,
+      "tx_errors": 0,
+      "tx_dropped": 0
+    },
+    "eth1": {
+      "rx_bytes": 144561531,
+      "rx_packets": 1133379,
+      "rx_errors": 0,
+      "rx_dropped": 0,
+      "tx_bytes": 479507552,
+      "tx_packets": 1112684,
+      "tx_errors": 0,
+      "tx_dropped": 0
+    },
+    "eth2": {
+      "rx_bytes": 16470,
+      "rx_packets": 229,
+      "rx_errors": 0,
+      "rx_dropped": 0,
+      "tx_bytes": 2608,
+      "tx_packets": 36,
+      "tx_errors": 0,
+      "tx_dropped": 0
+    }
+  }
+}

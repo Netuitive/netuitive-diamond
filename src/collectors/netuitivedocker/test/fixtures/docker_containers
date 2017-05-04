@@ -1,0 +1,76 @@
+[
+    {
+        "Id": "3f0d9af1f531e31aed1c281859793c5cd7fc8d4744c56a45186f3b1e2bf46771",
+        "Names": [
+            "/acm.1.88j768jw74704kgc51jd96ajg"
+        ],
+        "Image": "registry.uat.netuitive.com/acm:1.0.8.00023",
+        "ImageID": "sha256:f4207782dbce8b3016bac1d2a84dfe480eed14ebc251f26d4b189e696231d4bf",
+        "Command": "/entrypoint.sh exec",
+        "Created": 1493831924,
+        "Ports": [
+            {
+                "PrivatePort": 20223,
+                "Type": "tcp"
+            },
+            {
+                "PrivatePort": 20222,
+                "Type": "tcp"
+            },
+            {
+                "PrivatePort": 3553,
+                "Type": "tcp"
+            }
+        ],
+        "Labels": {
+            "com.docker.swarm.node.id": "407l5ye0zrupz9gsinq7jm95w",
+            "com.docker.swarm.service.id": "cnfey9l323jhu96jajlk4fvb7",
+            "com.docker.swarm.service.name": "acm",
+            "com.docker.swarm.task": "",
+            "com.docker.swarm.task.id": "88j768jw74704kgc51jd96ajg",
+            "com.docker.swarm.task.name": "acm.1"
+        },
+        "State": "running",
+        "Status": "Up 8 hours (healthy)",
+        "HostConfig": {
+            "NetworkMode": "default"
+        },
+        "NetworkSettings": {
+            "Networks": {
+                "ingress": {
+                    "IPAMConfig": {
+                        "IPv4Address": "10.255.0.17"
+                    },
+                    "Links": null,
+                    "Aliases": null,
+                    "NetworkID": "9j7tf9gnfjipav348jq56iw7b",
+                    "EndpointID": "e6f6448e3245b55c74fcd56b09bc09f7534c4fdd69b99a00982c04bc759e5ec7",
+                    "Gateway": "",
+                    "IPAddress": "10.255.0.17",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:0a:ff:00:11"
+                },
+                "netuitive_phoenix": {
+                    "IPAMConfig": {
+                        "IPv4Address": "10.100.0.14"
+                    },
+                    "Links": null,
+                    "Aliases": null,
+                    "NetworkID": "489y7l5ku0qnew1k2g03vkd00",
+                    "EndpointID": "58994a0c730fe30913a71685879756fa1ccec820285d27d663eacd59d545e040",
+                    "Gateway": "",
+                    "IPAddress": "10.100.0.14",
+                    "IPPrefixLen": 16,
+                    "IPv6Gateway": "",
+                    "GlobalIPv6Address": "",
+                    "GlobalIPv6PrefixLen": 0,
+                    "MacAddress": "02:42:0a:64:00:0e"
+                }
+            }
+        },
+        "Mounts": []
+    }
+]
