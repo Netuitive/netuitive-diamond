@@ -9,6 +9,7 @@ try:
     import json
 except ImportError:
     import simplejson as json
+from diamond.collector import str_to_bool
 
 
 class NetuitiveDockerCollector(diamond.collector.Collector):
@@ -17,7 +18,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config_help = super(
             NetuitiveDockerCollector, self).get_default_config_help()
         config_help.update({
-            'none': 'no options atm',
+            'simple': 'Only collect total metrics for CPU, Memory',
         })
         return config_help
 
@@ -28,6 +29,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config = super(NetuitiveDockerCollector, self).get_default_config()
         config.update({
             'path':     'containers',
+            'simple':   'False'
         })
         return config
 
@@ -43,6 +45,15 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
 
     def collect(self):
 
+        def filter_metric(metric):
+            if not str_to_bool(self.config['simple']):
+                return True
+            else:
+                if metric.startswith('memory.stats.'):
+                    if not metric.startswith('total', 13):
+                        return False
+            return True
+
         def print_metric(cc, name):
             data = cc.stats(name)
             metrics = json.loads(data.next())
@@ -52,8 +63,10 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             self.memory = self.flatten_dict(metrics['memory_stats'])
             for key, value in self.memory.items():
                 if value is not None:
-                    metric_name = name + ".memory." + key
-                    self.publish_gauge(metric_name, value)
+                    metric = 'memory.' + key
+                    if filter_metric(metric):
+                        metric_name = name + "." + metric
+                        self.publish_gauge(metric_name, value)
             # cpu metrics
             self.cpu = self.flatten_dict(metrics['cpu_stats'])
             for key, value in self.cpu.items():
@@ -63,7 +76,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         metric_name = name + ".cpu." + key
                         self.publish_counter(metric_name, value)
                     # dealing with percpu_usage
-                    if type(value) == list:
+                    if type(value) == list and not str_to_bool(self.config['simple']):
                         self.length = len(value)
                         for i in range(self.length):
                             self.value = value
