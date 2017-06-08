@@ -242,6 +242,10 @@ class DiskSpaceCollector(diamond.collector.Collector):
                 metric_value = float(blocks_free) / float(
                     blocks_free + (blocks_total - blocks_free)) * 100
                 self.publish_gauge(metric_name, metric_value, 2)
+                
+                metric_name = '%s.%s_percentavailable' % (name, unit)
+                metric_value = float(blocks_avail) * 100 / float(blocks_total)
+                self.publish_gauge(metric_name, metric_value, 2)
 
                 if str_to_bool(self.config['simple']):
                     continue
