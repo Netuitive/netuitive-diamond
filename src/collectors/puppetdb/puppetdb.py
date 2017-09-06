@@ -24,45 +24,45 @@ class PuppetDBCollector(diamond.collector.Collector):
 
     PATHS = {
         'memory':
-            "v2/metrics/mbean/java.lang:type=Memory",
+            "metrics/v1/mbeans/java.lang:type=Memory",
         'queue':
-            "v2/metrics/mbean/org.apache.activemq:BrokerName=localhost," +
-            "Type=Queue,Destination=com.puppetlabs.puppetdb.commands",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.depth",
         'processing-time':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.command:" +
-            "type=global,name=processing-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.processing-time",
         'processed':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.command:" +
-            "type=global,name=processed",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.processed",
         'retried':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.command:" +
-            "type=global,name=retried",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.retried",
         'discarded':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.command:" +
-            "type=global,name=discarded",
-        'fatal': "v2/metrics/mbean/com.puppetlabs.puppetdb.command:" +
-                 "type=global,name=fatal",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.discarded",
+        'fatal': "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                 "name=global.fatal",
         'commands.service-time':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb." +
-            "http.server:type=/v3/commands,name=service-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "http:name=commands.service-time",
         'resources.service-time':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb." +
-            "http.server:type=/v3/resources,name=service-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "http:name=resources.service-time",
         'gc-time':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.scf.storage:" +
-            "type=default,name=gc-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.storage:" +
+            "name=gc-time",
         'duplicate-pct':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.scf.storage:" +
-            "type=default,name=duplicate-pct",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.storage:" +
+            "name=duplicate-pct",
         'pct-resource-dupes':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.query." +
-            "population:type=default,name=pct-resource-dupes",
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "population:name=pct-resource-dupes",
         'num-nodes':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.query." +
-            "population:type=default,name=num-nodes",
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "population:name=num-nodes",
         'num-resources':
-            "v2/metrics/mbean/com.puppetlabs.puppetdb.query." +
-            "population:type=default,name=num-resources",
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "population:name=num-resources",
     }
 
     def get_default_config_help(self):
