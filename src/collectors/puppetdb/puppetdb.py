@@ -44,10 +44,10 @@ class PuppetDBCollector(diamond.collector.Collector):
                  "name=global.fatal",
         'commands.service-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb." +
-            "http:name=commands.service-time",
+            "http:name=/pdb/cmd/v1.service-time",
         'resources.service-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb." +
-            "http:name=resources.service-time",
+            "http:name=/pdb/query/v4/resources.service-time",
         'gc-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb.storage:" +
             "name=gc-time",
