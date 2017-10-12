@@ -19,6 +19,7 @@ import re
 import subprocess
 
 from diamond.metric import Metric
+from diamond.util import get_diamond_version
 from diamond.utils.config import load_config
 from error import DiamondException
 
@@ -199,6 +200,10 @@ class Collector(object):
 
         if self.configfile is not None:
             config = load_config(self.configfile)
+
+            if 'handlers' in config:
+                if 'NetuitiveHandler' in config['handlers']:
+                    self.config.merge(config['handlers']['NetuitiveHandler'])
 
             if 'collectors' in config:
                 if 'default' in config['collectors']:
@@ -542,6 +547,21 @@ class Collector(object):
 
         return binary
 
+    def _get_version(self):
+        """
+        Return version string
+        """
+
+        ret = 'Diamond_' + get_diamond_version().rstrip()
+        if os.path.isfile('/opt/netuitive-agent/version-manifest.txt'):
+            with open('/opt/netuitive-agent/version-manifest.txt', 'r') as f:
+                v = f.readline()
+
+            f.close()
+
+            ret = v.replace(' ', '_').lower().rstrip()
+
+        return(ret)
 
 class ProcessCollector(Collector):
     """
