@@ -207,6 +207,7 @@ enabled = True
 enabled = True
 
 [[HeartbeatCollector]]
+enabled = True
 ttl = 120
 
 ################################################################################
