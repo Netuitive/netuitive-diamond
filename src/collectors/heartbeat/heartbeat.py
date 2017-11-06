@@ -38,7 +38,7 @@ class HeartbeatCollector(diamond.collector.Collector):
         super(HeartbeatCollector, self).__init__(*args, **kwargs)
 
         self.hostname = self.get_hostname()
-        self.interval = self.config['interval']
+        self.ttl = self.config['ttl']
 
         if not netuitive:
             self.log.error('netuitive import failed. Heartbeat collector disabled')
@@ -52,5 +52,5 @@ class HeartbeatCollector(diamond.collector.Collector):
             self.log.debug(e)
 
     def collect(self):
-        check = netuitive.Check('heartbeat', self.hostname, self.interval)
+        check = netuitive.Check('heartbeat', self.hostname, self.ttl)
         self.api.post_check(check)
