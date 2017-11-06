@@ -110,19 +110,19 @@ class PuppetDBCollector(diamond.collector.Collector):
             'sec_command',
             time_convertor.convert(
                 rawmetrics['processing-time']['50thPercentile'],
-                rawmetrics['processing-time']['LatencyUnit'],
+                rawmetrics['processing-time']['DurationUnit'],
                 'seconds'))
         self.publish_gauge(
             'resources_service_time',
             time_convertor.convert(
                 rawmetrics['resources.service-time']['50thPercentile'],
-                rawmetrics['resources.service-time']['LatencyUnit'],
+                rawmetrics['resources.service-time']['DurationUnit'],
                 'seconds'))
         self.publish_gauge(
             'enqueueing_service_time',
             time_convertor.convert(
                 rawmetrics['commands.service-time']['50thPercentile'],
-                rawmetrics['commands.service-time']['LatencyUnit'],
+                rawmetrics['commands.service-time']['DurationUnit'],
                 'seconds'))
 
         self.publish_gauge('discarded', rawmetrics['discarded']['Count'])
@@ -132,7 +132,7 @@ class PuppetDBCollector(diamond.collector.Collector):
             'DB_Compaction',
             time_convertor.convert(
                 rawmetrics['gc-time']['50thPercentile'],
-                rawmetrics['gc-time']['LatencyUnit'],
+                rawmetrics['gc-time']['DurationUnit'],
                 'seconds'))
         self.publish_gauge('resource_duplicate_pct',
                            rawmetrics['pct-resource-dupes']['Value'])
