@@ -190,6 +190,10 @@ enabled = True
 [[VMStatCollector]]
 enabled = True
 
+[[HeartbeatCollector]]
+enabled = True
+ttl = 120
+
 ################################################################################
 ### Options for logging
 # for more information on file format syntax:
