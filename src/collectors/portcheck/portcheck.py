@@ -9,7 +9,7 @@ Example config file PortCheckCollector.conf
 
 ```
 enabled = True
-ttl = 120
+ttl = 150
 
 [port]
 [[echo]]
@@ -57,7 +57,7 @@ class PortCheckCollector(diamond.collector.Collector):
         self.ttl = self.config['ttl']
 
         if not netuitive:
-            self.log.error('netuitive import failed. Heartbeat collector disabled')
+            self.log.error('netuitive import failed. PortCheckCollector disabled')
             self.enabled = False
             return
 
