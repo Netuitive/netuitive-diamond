@@ -26,7 +26,6 @@ import diamond.convertor
 
 try:
     import psutil
-    psutil
 except ImportError:
     psutil = None
 
@@ -88,29 +87,27 @@ class ProcessCheckCollector(diamond.collector.Collector):
         except Exception as e:
             self.log.debug(e)
 
-
     def process_config(self):
         super(ProcessCheckCollector, self).process_config()
         """
         prepare self.processes, which is a descriptor dictionary in
-        pg_name: {
+        program_name: {
             exe: [regex],
             name: [regex],
-            cmdline: [regex],
-            procs: [psutil.Process]
+            cmdline: [regex]
         }
         """
         self.processes = {}
         self.processes_info = {}
-        for pg_name, cfg in self.config['process'].items():
-            pg_cfg = {}
+        for program_name, cfg in self.config['process'].items():
+            program_cfg = {}
             for key in ('exe', 'name', 'cmdline'):
-                pg_cfg[key] = cfg.get(key, [])
-                if not isinstance(pg_cfg[key], list):
-                    pg_cfg[key] = [pg_cfg[key]]
-                pg_cfg[key] = [re.compile(e) for e in pg_cfg[key]]
-            self.processes[pg_name] = pg_cfg
-            self.processes_info[pg_name] = {}
+                program_cfg[key] = cfg.get(key, [])
+                if not isinstance(program_cfg[key], list):
+                    program_cfg[key] = [program_cfg[key]]
+                program_cfg[key] = [re.compile(e) for e in program_cfg[key]]
+            self.processes[program_name] = program_cfg
+            self.processes_info[program_name] = {}
 
     def get_default_config_help(self):
         config_help = super(ProcessCheckCollector,
@@ -133,12 +130,12 @@ class ProcessCheckCollector(diamond.collector.Collector):
         })
         return config
 
-    def save_process_info(self, pg_name, process_info):
+    def save_process_info(self, program_name, process_info):
         for key, value in process_info.iteritems():
-            if key in self.processes_info[pg_name]:
-                self.processes_info[pg_name][key] += value
+            if key in self.processes_info[program_name]:
+                self.processes_info[program_name][key] += value
             else:
-                self.processes_info[pg_name][key] = value
+                self.processes_info[program_name][key] = value
 
     def collect_process_info(self, process):
         try:
@@ -149,14 +146,14 @@ class ProcessCheckCollector(diamond.collector.Collector):
                 exe = get_value(process, 'exe')
             except psutil.AccessDenied:
                 exe = ""
-            for pg_name, cfg in self.processes.items():
+            for program_name, cfg in self.processes.items():
                 if match_process(pid, name, cmdline, exe, cfg):
-                    pi = {}
+                    process_info = {}
                     status = get_value(process, 'status')
-                    self.log.debug("process %s has its status as %s", pg_name, status)
-                    pi.update({'up': 1 if status not in [psutil.STATUS_DEAD, psutil.STATUS_STOPPED] else 0})
-                    self.log.debug("process %s has its process info as %s", pg_name, pi)
-                    self.save_process_info(pg_name, pi)
+                    self.log.debug("process %s has its status as %s", program_name, status)
+                    process_info.update({'up': 1 if status not in [psutil.STATUS_DEAD, psutil.STATUS_STOPPED] else 0})
+                    self.log.debug("process %s has its process info as %s", program_name, process_info)
+                    self.save_process_info(program_name, process_info)
         except psutil.NoSuchProcess, e:
             self.log.info("Process exited while trying to get info: %s", e)
 
@@ -173,11 +170,11 @@ class ProcessCheckCollector(diamond.collector.Collector):
             self.collect_process_info(process)
 
         # check results
-        for pg_name, counters in self.processes_info.iteritems():
+        for program_name, counters in self.processes_info.iteritems():
             if counters and counters['up'] > 0:
                 # send check ttl for the process
-                check = netuitive.Check(pg_name, self.hostname, self.ttl)
+                check = netuitive.Check(program_name, self.hostname, self.ttl)
                 self.api.post_check(check)
 
             # reinitialize process info
-            self.processes_info[pg_name] = {}
+            self.processes_info[program_name] = {}
