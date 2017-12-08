@@ -1,17 +1,26 @@
 from test import CollectorTestCase
 from test import get_collector_config
+from test import run_only
 
 from mock import call, Mock, patch
 from unittest import TestCase
 
-from diamond.collector import Collector
-
 from portcheck import get_port_stats, PortCheckCollector
+
+def run_only_if_netuitive_is_available(func):
+    try:
+        import netuitive
+    except ImportError:
+        netuitive = None
+    return run_only(func, lambda: netuitive is not None)
 
 
 class PortCheckCollectorTestCase(CollectorTestCase):
 
     TEST_CONFIG = {
+        'hostname' : 'localhost',
+        'url': 'http://localhost',
+        'api_key': "1234567890",
         'ttl': 120,
         'port': {
             'something1': {
@@ -31,6 +40,20 @@ class PortCheckCollectorTestCase(CollectorTestCase):
 
     def test_import(self):
         self.assertTrue(PortCheckCollector)
+
+    @run_only_if_netuitive_is_available
+    @patch('netuitive.Check')
+    @patch('netuitive.Client.post_check')
+    @patch('portcheck.get_port_stats')
+    def test_collect(self, get_port_stats_mock, netuitive_client_post_check_mock, netuitive_check_mock):
+
+        get_port_stats_mock.return_value = {'listen': 1}
+
+        self.collector.collect()
+        get_port_stats_mock.assert_has_calls([call(5222), call(8888)],
+                                             any_order=True)
+        netuitive_check_mock.assert_has_calls([call('something1.5222', 'localhost', 120), call('something2.8888', 'localhost', 120)],
+                                              any_order=True)
 
 class GetPortChecksTestCase(TestCase):
 

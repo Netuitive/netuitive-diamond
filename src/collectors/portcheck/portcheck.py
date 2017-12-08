@@ -56,6 +56,13 @@ class PortCheckCollector(diamond.collector.Collector):
         self.hostname = self.get_hostname()
         self.ttl = self.config['ttl']
 
+        self.ports = {}
+        for port_name, cfg in self.config['port'].items():
+            port_cfg = {}
+            for key in ('number',):
+                port_cfg[key] = cfg.get(key, [])
+            self.ports[port_name] = port_cfg
+
         if not netuitive:
             self.log.error('netuitive import failed. PortCheckCollector disabled')
             self.enabled = False
@@ -66,13 +73,6 @@ class PortCheckCollector(diamond.collector.Collector):
             self.api = netuitive.Client(self.config['url'], self.config['api_key'], self.version)
         except Exception as e:
             self.log.debug(e)
-
-        self.ports = {}
-        for port_name, cfg in self.config['port'].items():
-            port_cfg = {}
-            for key in ('number',):
-                port_cfg[key] = cfg.get(key, [])
-            self.ports[port_name] = port_cfg
 
     def get_default_config_help(self):
         config_help = super(PortCheckCollector, self).get_default_config_help()
