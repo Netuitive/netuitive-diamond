@@ -149,10 +149,25 @@ class SolrCollector(diamond.collector.Collector):
                          select[key]) for key in query_keys])
 
                 except KeyError:
+                    pass
+
+                try:
                     standard = stats["QUERYHANDLER"]["standard"]["stats"]
                     metrics.update([
                         ("{0}queryhandler.standard.{1}".format(path, key),
                          standard[key]) for key in query_keys])
+
+                except KeyError:
+                    pass
+
+                try:
+                    select = stats["QUERYHANDLER"]["select"]["stats"]
+                    metrics.update([
+                        ("{0}queryhandler.select.{1}".format(path, key),
+                         select[key]) for key in query_keys])
+
+                except KeyError:
+                    pass
 
                 update = stats["QUERYHANDLER"]["/update"]["stats"]
                 metrics.update([
