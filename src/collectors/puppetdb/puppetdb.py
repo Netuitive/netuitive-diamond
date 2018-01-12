@@ -25,9 +25,48 @@ class PuppetDBCollector(diamond.collector.Collector):
     PATHS = {
         'memory':
             "metrics/v1/mbeans/java.lang:type=Memory",
-        'queue':
-            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-            "name=global.depth",
+        'queue.AwaitingRetry':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.awaiting-retry",
+        'queue.CommandParseTime':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.command-parse-time",
+        'queue.Depth':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.depth",
+        'queue.Discarded':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.discarded",
+        'queue.Fatal':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.fatal",
+        'queue.Invalidated':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.invalidated",
+        'queue.MessagePersistenceTime':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.message-persistence-time",
+        'queue.Processed':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.processed",
+        'queue.ProcessingTime':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.processing-time",
+        'queue.QueueTime':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.queue-time",
+        'queue.Retried':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.retried",
+        'queue.RetryCounts':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.retry-counts",
+        'queue.Seen':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.seen",
+        'queue.Size':
+                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+                "name=global.size",
         'processing-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
             "name=global.processing-time",
@@ -139,24 +178,46 @@ class PuppetDBCollector(diamond.collector.Collector):
         self.publish_gauge('num_nodes',
                            rawmetrics['num-nodes']['Value'])
 
-        self.publish_counter('queue.ProducerCount',
-                             rawmetrics['queue']['ProducerCount'])
-        self.publish_counter('queue.DequeueCount',
-                             rawmetrics['queue']['DequeueCount'])
-        self.publish_counter('queue.ConsumerCount',
-                             rawmetrics['queue']['ConsumerCount'])
-        self.publish_gauge('queue.QueueSize',
-                           rawmetrics['queue']['QueueSize'])
-        self.publish_counter('queue.ExpiredCount',
-                             rawmetrics['queue']['ExpiredCount'])
-        self.publish_counter('queue.EnqueueCount',
-                             rawmetrics['queue']['EnqueueCount'])
-        self.publish_counter('queue.InFlightCount',
-                             rawmetrics['queue']['InFlightCount'])
-        self.publish_gauge('queue.CursorPercentUsage',
-                           rawmetrics['queue']['CursorPercentUsage'])
-        self.publish_gauge('queue.MemoryUsagePortion',
-                           rawmetrics['queue']['MemoryUsagePortion'])
+        self.publish_gauge('queue.AwaitingRetry',
+                           rawmetrics['queue.AwaitingRetry']['Count'])
+        self.publish_gauge(
+            'queue.CommandParseTime',
+            time_convertor.convert(
+                rawmetrics['queue.CommandParseTime']['50thPercentile'],
+                rawmetrics['queue.CommandParseTime']['DurationUnit'],
+                'seconds'))
+        self.publish_gauge('queue.Depth',
+                           rawmetrics['queue.Depth']['Count'])
+        self.publish_counter('queue.Discarded',
+                             rawmetrics['queue.Discarded']['Count'])
+        self.publish_counter('queue.Fatal',
+                             rawmetrics['queue.Fatal']['Count'])
+        self.publish_counter('queue.Invalidated',
+                             rawmetrics['queue.Invalidated']['Count'])
+        self.publish_gauge(
+            'queue.MessagePersistenceTime',
+            time_convertor.convert(
+                rawmetrics['queue.MessagePersistenceTime']['50thPercentile'],
+                rawmetrics['queue.MessagePersistenceTime']['DurationUnit'],
+                'seconds'))
+        self.publish_counter('queue.Processed',
+                             rawmetrics['queue.Processed']['Count'])
+        self.publish_gauge(
+            'queue.ProcessingTime',
+            time_convertor.convert(
+                rawmetrics['queue.ProcessingTime']['50thPercentile'],
+                rawmetrics['queue.ProcessingTime']['DurationUnit'],
+                'seconds'))
+        self.publish_gauge('queue.QueueTime',
+                           rawmetrics['queue.QueueTime']['50thPercentile'])
+        self.publish_counter('queue.Retried',
+                             rawmetrics['queue.Retried']['Count'])
+        self.publish_gauge('queue.RetryCounts',
+                           rawmetrics['RetryCounts']['50thPercentile'])
+        self.publish_counter('queue.Seen',
+                             rawmetrics['queue.Seen']['Count'])
+        self.publish_gauge('queue.Size',
+                           rawmetrics['queue.Size']['50thPercentile'])
 
         self.publish_gauge('memory.NonHeapMemoryUsage.used',
                            rawmetrics['memory']['NonHeapMemoryUsage']['used'])
