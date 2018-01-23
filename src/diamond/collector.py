@@ -18,6 +18,7 @@ import time
 import re
 import subprocess
 
+from copy import deepcopy
 from diamond.metric import Metric
 from diamond.util import get_diamond_version
 from diamond.utils.config import load_config
@@ -203,7 +204,7 @@ class Collector(object):
 
             if 'handlers' in config:
                 if 'NetuitiveHandler' in config['handlers']:
-                    self.config.merge(config['handlers']['NetuitiveHandler'])
+                    self.merge_config(config['handlers']['NetuitiveHandler'], prefix='netuitive_')
 
             if 'collectors' in config:
                 if 'default' in config['collectors']:
@@ -317,6 +318,15 @@ class Collector(object):
             # Blacklist of metrics to let through
             'metrics_blacklist': None,
         }
+
+    def merge_config(self, other, prefix=None):
+        if prefix:
+            othercopy = deepcopy(other)
+            for key in othercopy.keys():
+                othercopy[prefix + key] = othercopy.pop(key)
+            self.config.merge(othercopy)
+        else:
+            self.config.merge(other)
 
     def get_metric_path(self, name, instance=None):
         """
