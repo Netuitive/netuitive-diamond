@@ -33,8 +33,8 @@ def run_only_if_netuitive_is_available(func):
 class TestProcessCheckCollector(CollectorTestCase):
     TEST_CONFIG = {
         'hostname' : 'localhost',
-        'url': 'http://localhost',
-        'api_key': "1234567890",
+        'netuitive_url': 'http://localhost',
+        'netuitive_api_key': "1234567890",
         'ttl': 150,
         'process': {
             'foo': {

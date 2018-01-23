@@ -19,8 +19,8 @@ class PortCheckCollectorTestCase(CollectorTestCase):
 
     TEST_CONFIG = {
         'hostname' : 'localhost',
-        'url': 'http://localhost',
-        'api_key': "1234567890",
+        'netuitive_url': 'http://localhost',
+        'netuitive_api_key': "1234567890",
         'ttl': 120,
         'port': {
             'something1': {

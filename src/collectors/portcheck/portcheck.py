@@ -70,7 +70,7 @@ class PortCheckCollector(diamond.collector.Collector):
 
         try:
             self.version = self._get_version()
-            self.api = netuitive.Client(self.config['url'], self.config['api_key'], self.version)
+            self.api = netuitive.Client(self.config['netuitive_url'], self.config['netuitive_api_key'], self.version)
         except Exception as e:
             self.log.debug(e)
 
