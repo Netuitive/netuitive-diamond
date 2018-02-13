@@ -213,7 +213,7 @@ class PuppetDBCollector(diamond.collector.Collector):
         self.publish_counter('queue.Retried',
                              rawmetrics['queue.Retried']['Count'])
         self.publish_gauge('queue.RetryCounts',
-                           rawmetrics['RetryCounts']['50thPercentile'])
+                           rawmetrics['queue.RetryCounts']['50thPercentile'])
         self.publish_counter('queue.Seen',
                              rawmetrics['queue.Seen']['Count'])
         self.publish_gauge('queue.Size',
