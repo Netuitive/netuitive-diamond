@@ -67,20 +67,12 @@ class PuppetDBCollector(diamond.collector.Collector):
         'queue.Size':
                 "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
                 "name=global.size",
-        'processing-time':
-            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-            "name=global.processing-time",
         'processed':
             "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
             "name=global.processed",
         'retried':
             "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
             "name=global.retried",
-        'discarded':
-            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-            "name=global.discarded",
-        'fatal': "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                 "name=global.fatal",
         'commands.service-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb." +
             "http:name=/pdb/cmd/v1.service-time",
@@ -146,12 +138,6 @@ class PuppetDBCollector(diamond.collector.Collector):
         self.publish_gauge('catalog_duplicate_pct',
                            rawmetrics['duplicate-pct']['Value'])
         self.publish_gauge(
-            'sec_command',
-            time_convertor.convert(
-                rawmetrics['processing-time']['50thPercentile'],
-                rawmetrics['processing-time']['DurationUnit'],
-                'seconds'))
-        self.publish_gauge(
             'resources_service_time',
             time_convertor.convert(
                 rawmetrics['resources.service-time']['50thPercentile'],
@@ -164,9 +150,7 @@ class PuppetDBCollector(diamond.collector.Collector):
                 rawmetrics['commands.service-time']['DurationUnit'],
                 'seconds'))
 
-        self.publish_gauge('discarded', rawmetrics['discarded']['Count'])
         self.publish_gauge('processed', rawmetrics['processed']['Count'])
-        self.publish_gauge('rejected', rawmetrics['fatal']['Count'])
         self.publish_gauge(
             'DB_Compaction',
             time_convertor.convert(
