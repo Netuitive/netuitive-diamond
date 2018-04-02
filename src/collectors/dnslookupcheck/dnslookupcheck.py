@@ -50,8 +50,7 @@ class DNSLookupCheckCollector(diamond.collector.Collector):
         config_help = super(
             DNSLookupCheckCollector, self).get_default_config_help()
         config_help.update({
-        'ttl':
-        'number of seconds until Metricly should expire the check',
+        'ttl': 'number of seconds until Metricly should expire the check',
         'dnsAddressList':
         'array of domains to lookup (ex: www.google.com, www.yahoo.com)',
         })
