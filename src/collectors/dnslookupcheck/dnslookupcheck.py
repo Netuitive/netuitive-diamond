@@ -1,5 +1,5 @@
 """
-The DNSLookupCheckCollector does a DNS lookup and returns a check 
+The DNSLookupCheckCollector does a DNS lookup and returns a check
 ##### Dependencies
 * socket
 
@@ -33,7 +33,7 @@ class DNSLookupCheckCollector(diamond.collector.Collector):
         super(DNSLookupCheckCollector, self).__init__(*args, **kwargs)
         self.hostname = self.get_hostname()
         self.ttl = self.config['ttl']
-        
+
         if not netuitive:
             self.log.error('netuitive import failed. dnslookupcheck disabled')
             self.enabled = False
@@ -65,10 +65,10 @@ class DNSLookupCheckCollector(diamond.collector.Collector):
         """
 
         #check to see if the dns name returns an IP address
-        for x in self.config['dnsAddressList']:
+        for dnsAddress in self.config['dnsAddressList']:
             try:
-                addr = socket.gethostbyname(x)
-                check = netuitive.Check(x, self.hostname, self.ttl)
+                addr = socket.gethostbyname(dnsAddress)
+                check = netuitive.Check(dnsAddress, self.hostname, self.ttl)
                 self.api.post_check(check)
             except socket.gaierror:
                 self.log.error ('cannot resolve hostname')
