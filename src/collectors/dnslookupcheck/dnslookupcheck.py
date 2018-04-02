@@ -8,7 +8,7 @@ Example config file DNSLookupCheckCollector.conf
 enabled = True
 ttl = 150
 
-dnsAddressList = ('www.google.com', 'www.yahoo.com')
+dnsAddressList = www.google.com, www.yahoo.com
 ```
 """
 
@@ -41,23 +41,29 @@ class DNSLookupCheckCollector(diamond.collector.Collector):
 
         try:
             self.version = self._get_version()
-            self.api = netuitive.Client(self.config['netuitive_url'], self.config['netuitive_api_key'], self.version)
+            self.api = netuitive.Client(self.config['netuitive_url'],
+                self.config['netuitive_api_key'], self.version)
         except Exception as e:
             self.log.debug(e)
 
     def get_default_config_help(self):
-        config_help = super(DNSLookupCheckCollector, self).get_default_config_help()
+        config_help = super(
+            DNSLookupCheckCollector, self).get_default_config_help()
         config_help.update({
+        'ttl':
+        'number of seconds until Metricly should expire the check',
+        'dnsAddressList':
+        'array of domains to lookup (ex: www.google.com, www.yahoo.com)',
         })
         return config_help
 
     def get_default_config(self):
-        config = super(DNSLookupCheckCollector, self).get_default_config()
-        config.update({
-            'path': 'port',
-            'port': {},
-        })
-        return config
+        default_config = super(
+            DNSLookupCheckCollector, self).get_default_config()
+        default_config['ttl'] = 150
+        default_config['dnsAddressList'] = ['google.com']
+
+        return default_config
 
     def collect(self):
         """
