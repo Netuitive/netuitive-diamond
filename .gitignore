@@ -1,6 +1,7 @@
 dist/
 build/
 tmp/
+venv/
 *.pyc
 *.sublime-*
 MANIFEST
