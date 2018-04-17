@@ -39,6 +39,7 @@ class HeartbeatCollector(diamond.collector.Collector):
 
         self.hostname = self.get_hostname()
         self.ttl = self.config['ttl']
+        self.connection_timeout = 5
 
         if not netuitive:
             self.log.error('netuitive import failed. Heartbeat collector disabled')
@@ -47,7 +48,13 @@ class HeartbeatCollector(diamond.collector.Collector):
 
         try:
             self.version = self._get_version()
-            self.api = netuitive.Client(self.config['netuitive_url'], self.config['netuitive_api_key'], self.version)
+            if self.config['netuitive_connection_timeout']:
+                self.connection_timeout = int(self.config['netuitive_connection_timeout'])
+
+            self.api = netuitive.Client(url=self.config['netuitive_url'],
+                                        api_key=self.config['netuitive_api_key'],
+                                        agent=self.version,
+                                        connection_timeout=self.connection_timeout)
         except Exception as e:
             self.log.debug(e)
 
