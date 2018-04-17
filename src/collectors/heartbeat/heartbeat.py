@@ -48,7 +48,7 @@ class HeartbeatCollector(diamond.collector.Collector):
 
         try:
             self.version = self._get_version()
-            if self.config['netuitive_connection_timeout']:
+            if 'netuitive_connection_timeout' in self.config:
                 self.connection_timeout = int(self.config['netuitive_connection_timeout'])
 
             self.api = netuitive.Client(url=self.config['netuitive_url'],
