@@ -25,6 +25,7 @@ from diamond.utils.classes import load_handlers
 from diamond.utils.classes import load_include_path
 
 from diamond.utils.config import load_config
+from diamond.utils.config import str_to_bool
 
 from diamond.utils.scheduler import collector_process
 from diamond.utils.scheduler import handler_process
@@ -59,6 +60,27 @@ class Server(object):
         self.manager = multiprocessing.Manager()
         if setproctitle:
             setproctitle(oldproctitle)
+
+    def disable_collector(self, config, collector):
+        """
+        disable a collector in its config
+        """
+        if collector in config['collectors'] and 'enabled' in config['collectors'][collector] and str_to_bool(config['collectors'][collector]['enabled']):
+            config['collectors'][collector]['enabled'] = 'False'
+
+    def manage_base_collectors(self, config):
+        """
+        manage base collector and its delegated collectors
+        so that they won't be enabled at the same time
+        """
+        if 'BaseCollector' in config['collectors'] and 'enabled' in config['collectors']['BaseCollector'] and str_to_bool(config['collectors']['BaseCollector']['enabled']):
+            self.disable_collector(config, 'CPUCollector')
+            self.disable_collector(config, 'DiskSpaceCollector')
+            self.disable_collector(config, 'DiskUsageCollector')
+            self.disable_collector(config, 'LoadAverageCollector')
+            self.disable_collector(config, 'MemoryCollector')
+            self.disable_collector(config, 'VMStatCollector')
+            self.disable_collector(config, 'NetworkCollector')
 
     def run(self):
         """
@@ -150,6 +172,7 @@ class Server(object):
                 # Collectors
                 ##############################################################
 
+                self.manage_base_collectors(self.config)
                 running_collectors = []
                 for collector, config in self.config['collectors'].iteritems():
                     if config.get('enabled', False) is not True:
