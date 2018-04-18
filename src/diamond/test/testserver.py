@@ -41,7 +41,7 @@ class ServerTest(unittest.TestCase):
         }
 
         server = Server(None)
-        server.mangage_base_collectors(config)
+        server.manage_base_collectors(config)
 
         self.assertEqual(len(config['collectors']), 8)
         self.assertEqual(config['collectors']['BaseCollector']['enabled'], 'True')
@@ -84,7 +84,7 @@ class ServerTest(unittest.TestCase):
         }
 
         server = Server(None)
-        server.mangage_base_collectors(config)
+        server.manage_base_collectors(config)
 
         self.assertEqual(len(config['collectors']), 7)
 

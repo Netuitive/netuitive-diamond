@@ -68,7 +68,7 @@ class Server(object):
         if collector in config['collectors'] and 'enabled' in config['collectors'][collector] and str_to_bool(config['collectors'][collector]['enabled']):
             config['collectors'][collector]['enabled'] = 'False'
 
-    def mangage_base_collectors(self, config):
+    def manage_base_collectors(self, config):
         """
         manage base collector and its delegated collectors
         so that they won't be enabled at the same time
@@ -172,7 +172,7 @@ class Server(object):
                 # Collectors
                 ##############################################################
 
-                self.mangage_base_collectors(self.config)
+                self.manage_base_collectors(self.config)
                 running_collectors = []
                 for collector, config in self.config['collectors'].iteritems():
                     if config.get('enabled', False) is not True:
