@@ -109,7 +109,7 @@ def handler_process(handlers, metric_queue, log):
 
     while(True):
         metric = metric_queue.get(block=True, timeout=None)
-        log.debug('in utils.scheduler.handler_process: metic_queue.qsize = ' +
+        log.debug('in utils.scheduler.handler_process: metric_queue.qsize = ' +
                   str(metric_queue.qsize()))
         for handler in handlers:
             if metric is not None:
