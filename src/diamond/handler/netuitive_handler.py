@@ -23,7 +23,7 @@ import os
 import json
 import urllib2
 from diamond.util import get_diamond_version
-
+from diamond.utils.config import str_to_bool
 from diamond.utils.config import load_config as load_server_config
 
 try:
@@ -141,6 +141,12 @@ class NetuitiveHandler(Handler):
             self._add_collectors()
 
             self.flush_time = 0
+
+            self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
+            if self.config['write_metric_fqns']:
+                self.metric_fqns_path = self.config['metric_fqns_path']
+                truncate_fqn_file = open(self.metric_fqns_path, "w")
+                truncate_fqn_file.close()
 
             logging.debug(self.config)
 
@@ -373,6 +379,18 @@ class NetuitiveHandler(Handler):
             logging.error(e)
             pass
 
+    def write_metric_fqns(self):
+        with open(self.metric_fqns_path,'a+') as metric_fqn_file:
+            master_fqn_list = [line.strip() for line in metric_fqn_file.readlines()]
+            candidate_fqn_list = [metric.id for metric in [metric for metric in self.element.metrics]]
+            new_metric_fqns = list(set(candidate_fqn_list).difference(set(master_fqn_list)))
+
+            # Only write if there are new metric fqns.
+            if len(new_metric_fqns) > 0:
+                for fqn in new_metric_fqns:
+                    metric_fqn_file.write("{}\n".format(fqn))
+        metric_fqn_file.closed
+
     def process(self, metric):
         metricId = metric.getCollectorPath() + '.' + metric.getMetricPath()
 
@@ -407,6 +425,9 @@ class NetuitiveHandler(Handler):
                 self.element.metrics = self.element.metrics[trim_offset:]
 
             self.api.post(self.element)
+            if self.config['write_metric_fqns']:
+                self.write_metric_fqns()
+
             self.element.clear_samples()
 
             elapsed = int(time.time()) - self.flush_time
