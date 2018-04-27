@@ -142,7 +142,13 @@ class NetuitiveHandler(Handler):
 
             self.flush_time = 0
 
-            self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
+            try:
+                self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
+
+            except KeyError, e:
+                self.log.warning('write_metric_fqns missing from the config')
+                self.config['write_metric_fqns'] = False
+
             if self.config['write_metric_fqns']:
                 self.metric_fqns_path = self.config['metric_fqns_path']
                 truncate_fqn_file = open(self.metric_fqns_path, "w")
