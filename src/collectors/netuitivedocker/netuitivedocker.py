@@ -2,7 +2,10 @@
 Originally from https://github.com/lesaux/diamond-DockerContainerCollector
 """
 
-import docker
+try:
+    import docker
+except ImportError:
+    docker = None
 import threading
 import diamond.collector
 try:
@@ -13,6 +16,15 @@ from diamond.collector import str_to_bool
 
 
 class NetuitiveDockerCollector(diamond.collector.Collector):
+
+    def __init__(self, *args, **kwargs):
+        super(NetuitiveDockerCollector, self).__init__(*args, **kwargs)
+        if not docker:
+            self.log.error('docker import failed. NetuitiveDockerCollector disabled')
+            self.enabled = False
+            return
+        self.client = docker.Client(
+            base_url='unix://var/run/docker.sock', version='auto')
 
     def get_default_config_help(self):
         config_help = super(
@@ -106,17 +118,15 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
 
-        cc = docker.Client(
-            base_url='unix://var/run/docker.sock', version='auto')
-        dockernames = [i['Names'] for i in cc.containers()]
+        dockernames = [i['Names'] for i in self.client.containers()]
 
-        running_containers = len(cc.containers())
-        all_containers = len(cc.containers(all=True))
+        running_containers = len(self.client.containers())
+        all_containers = len(self.client.containers(all=True))
         stopped_containers = (all_containers - running_containers)
 
-        image_count = len(set(cc.images(quiet=True)))
+        image_count = len(set(self.client.images(quiet=True)))
         dangling_image_count = len(
-            set(cc.images(quiet=True, all=True, filters={'dangling': True})))
+            set(self.client.images(quiet=True, all=True, filters={'dangling': True})))
 
         self.publish('counts.running', running_containers)
         self.publish('counts.stopped', stopped_containers)
@@ -128,7 +138,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         threads = []
 
         for dname in dockernames:
-            t = threading.Thread(target=print_metric, args=(cc, dname[0][1:]))
+            t = threading.Thread(target=print_metric, args=(self.client, dname[0][1:]))
             threads.append(t)
             t.start()
 

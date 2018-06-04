@@ -11,6 +11,16 @@ from netuitivedocker import NetuitiveDockerCollector
 from test import CollectorTestCase
 from test import get_collector_config
 from test import unittest
+from test import run_only
+
+
+def run_only_if_docker_client_is_available(func):
+    try:
+        from docker import Client
+    except ImportError:
+        Client = None
+    pred = lambda: Client is not None
+    return run_only(func, pred)
 
 
 ##########################################################################
@@ -181,6 +191,10 @@ class TestNetuitiveDockerCollector(CollectorTestCase):
             'acm.1.88j768jw74704kgc51jd96ajg.cpu.cpu_usage.percpu_usage14': 0,
         }
         self.assertUnpublishedMany(collector_publish_mock, skipped_metrics)
+
+    @run_only_if_docker_client_is_available
+    def test_docker_client_init(self):
+        self.assertTrue(hasattr(self.collector, 'client'))
 
 
 ##########################################################################
