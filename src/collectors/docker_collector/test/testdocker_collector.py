@@ -58,5 +58,8 @@ class TestDockerCollector(CollectorTestCase):
             val = self.collector.get_value(path, stat)
             self.assertTrue(val is None)
 
+    def test_docker_client_init(self):
+        self.assertTrue(hasattr(self.collector, 'client'))
+
 if __name__ == "__main__":
     unittest.main()

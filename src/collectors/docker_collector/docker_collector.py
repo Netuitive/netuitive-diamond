@@ -21,6 +21,14 @@ except ImportError:
 
 class DockerCollector(diamond.collector.Collector):
 
+    def __init__(self, *args, **kwargs):
+        super(DockerCollector, self).__init__(*args, **kwargs)
+        if not docker:
+            self.log.error('docker import failed. DockerCollector disabled')
+            self.enabled = False
+            return
+        self.client = docker.Client(version='auto')
+
     METRICS = {
         # memory stats
         "memory_stats.stats.total_rss": "RSS_byte",
@@ -64,28 +72,27 @@ class DockerCollector(diamond.collector.Collector):
         try:
             # Collect info
             results = {}
-            client = docker.Client(version='auto')
 
             # Top level stats
-            running_containers = client.containers()
+            running_containers = self.client.containers()
             results['containers_running_count'] = (
                 len(running_containers), 'GAUGE')
 
-            all_containers = client.containers(all=True)
+            all_containers = self.client.containers(all=True)
             results['containers_stopped_count'] = (
                 len(all_containers) - len(running_containers), 'GAUGE')
 
-            images_count = len(set(client.images(quiet=True)))
+            images_count = len(set(self.client.images(quiet=True)))
             results['images_count'] = (images_count, 'GAUGE')
 
-            dangling_images_count = len(set(client.images(
+            dangling_images_count = len(set(self.client.images(
                 quiet=True, all=True, filters={'dangling': True})))
             results['images_dangling_count'] = (dangling_images_count, 'GAUGE')
 
             # Collect memory and cpu stats
             for container in running_containers:
                 name = "containers." + "".join(container['Names'][0][1:])
-                s = client.stats(container["Id"])
+                s = self.client.stats(container["Id"])
                 stat = json.loads(s.next())
                 for path in self.METRICS:
                     val = self.get_value(path, stat)
