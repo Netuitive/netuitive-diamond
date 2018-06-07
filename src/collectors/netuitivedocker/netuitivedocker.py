@@ -72,16 +72,16 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             if name.find("/") != -1:
                 name = name.rsplit('/', 1)[1]
             # memory metrics
-            self.memory = self.flatten_dict(metrics['memory_stats'])
-            for key, value in self.memory.items():
+            memory = self.flatten_dict(metrics['memory_stats'])
+            for key, value in memory.items():
                 if value is not None:
                     metric = 'memory.' + key
                     if filter_metric(metric):
                         metric_name = name + "." + metric
                         self.publish_gauge(metric_name, value)
             # cpu metrics
-            self.cpu = self.flatten_dict(metrics['cpu_stats'])
-            for key, value in self.cpu.items():
+            cpu = self.flatten_dict(metrics['cpu_stats'])
+            for key, value in cpu.items():
                 if value is not None:
                     # percpu_usage is a list, we'll deal with it after
                     if type(value) == int:
@@ -89,31 +89,28 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         self.publish_counter(metric_name, value)
                     # dealing with percpu_usage
                     if type(value) == list and not str_to_bool(self.config['simple']):
-                        self.length = len(value)
-                        for i in range(self.length):
-                            self.value = value
-                            self.metric_name = name + ".cpu." + key + str(i)
-                            self.publish_counter(
-                                self.metric_name, self.value[i])
+                        for i in range(len(value)):
+                            metric_name = name + ".cpu." + key + str(i)
+                            self.publish_counter(metric_name, value[i])
             
             # network metrics
-            self.network = None
+            network = None
 
             if 'network' in metrics:
-                self.network = self.flatten_dict(metrics['network'])
+                network = self.flatten_dict(metrics['network'])
 
             if 'networks' in metrics:
-                self.network = self.flatten_dict(metrics['networks'])
+                network = self.flatten_dict(metrics['networks'])
 
-            if self.network is not None:
-                for key, value in self.network.items():
+            if network is not None:
+                for key, value in network.items():
                     if value is not None:
                         metric_name = name + ".network." + key
                         self.publish_counter(metric_name, value)
             
             # blkio metrics
-            self.blkio = self.flatten_dict(metrics['blkio_stats'])
-            for key, value in self.blkio.items():
+            blkio = self.flatten_dict(metrics['blkio_stats'])
+            for key, value in blkio.items():
                 if value is not None:
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
