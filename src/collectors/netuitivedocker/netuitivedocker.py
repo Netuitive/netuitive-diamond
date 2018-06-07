@@ -6,7 +6,7 @@ try:
     import docker
 except ImportError:
     docker = None
-import threading
+from multiprocessing.pool import ThreadPool
 import diamond.collector
 try:
     import json
@@ -31,6 +31,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             NetuitiveDockerCollector, self).get_default_config_help()
         config_help.update({
             'simple': 'Only collect total metrics for CPU, Memory',
+            'threadpool_size': 'Number of threads used for container metrics data collection'
         })
         return config_help
 
@@ -41,7 +42,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config = super(NetuitiveDockerCollector, self).get_default_config()
         config.update({
             'path':     'containers',
-            'simple':   'False'
+            'simple':   'False',
+            'threadpool_size': 20
         })
         return config
 
@@ -66,8 +68,14 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         return False
             return True
 
-        def print_metric(cc, name):
-            data = cc.stats(name)
+        def extract_dockernames(dockernames):
+            container_names = []
+            for dockername in dockernames:
+                container_names.append(dockername[0][1:])
+            return container_names
+
+        def print_metric(name):
+            data = self.client.stats(name)
             metrics = json.loads(data.next())
             if name.find("/") != -1:
                 name = name.rsplit('/', 1)[1]
@@ -109,11 +117,11 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         self.publish_counter(metric_name, value)
             
             # blkio metrics
-            blkio = self.flatten_dict(metrics['blkio_stats'])
-            for key, value in blkio.items():
-                if value is not None:
-                    metric_name = name + ".blkio." + key
-                    self.publish_counter(metric_name, value)
+            #blkio = self.flatten_dict(metrics['blkio_stats'])
+            #for key, value in blkio.items():
+            #    if value is not None:
+            #        metric_name = name + ".blkio." + key
+            #        self.publish_counter(metric_name, value)
 
         dockernames = [i['Names'] for i in self.client.containers()]
 
@@ -132,12 +140,10 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         self.publish('counts.images', image_count)
         self.publish('counts.dangling_images', dangling_image_count)
 
-        threads = []
+        self.log.info("start collecting docker container metrics using a threadpool of %d workers" % (int(self.config['threadpool_size'])))
+        pool = ThreadPool(processes=int(self.config['threadpool_size']))
+        containers = extract_dockernames(dockernames)
+        pool.map(print_metric, containers)
+        pool.close()
+        pool.join()
 
-        for dname in dockernames:
-            t = threading.Thread(target=print_metric, args=(self.client, dname[0][1:]))
-            threads.append(t)
-            t.start()
-
-        for thread in threads:
-            thread.join()
