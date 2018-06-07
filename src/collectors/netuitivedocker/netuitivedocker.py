@@ -69,10 +69,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             return True
 
         def extract_dockernames(dockernames):
-            container_names = []
-            for dockername in dockernames:
-                container_names.append(dockername[0][1:])
-            return container_names
+            return [dockername[0][1:] for dockername in dockernames]
 
         def print_metric(name):
             data = self.client.stats(name)
