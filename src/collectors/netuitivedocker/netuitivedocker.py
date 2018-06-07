@@ -140,7 +140,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         self.publish('counts.images', image_count)
         self.publish('counts.dangling_images', dangling_image_count)
 
-        self.log.info("start collecting docker container metrics using a threadpool of %d workers" % (int(self.config['threadpool_size'])))
+        self.log.debug("start collecting docker container metrics using a threadpool of %d workers" % (int(self.config['threadpool_size'])))
         pool = ThreadPool(processes=int(self.config['threadpool_size']))
         containers = extract_dockernames(dockernames)
         pool.map(print_metric, containers)
