@@ -27,7 +27,7 @@ class DockerCollector(diamond.collector.Collector):
             self.log.error('docker import failed. DockerCollector disabled')
             self.enabled = False
             return
-        self.client = docker.Client(version='auto')
+        self.client = docker.DockerClient(version='auto')
 
     METRICS = {
         # memory stats

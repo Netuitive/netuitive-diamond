@@ -23,7 +23,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             self.log.error('docker import failed. NetuitiveDockerCollector disabled')
             self.enabled = False
             return
-        self.client = docker.Client(
+        self.client = docker.DockerClient(
             base_url='unix://var/run/docker.sock', version='auto')
 
     def get_default_config_help(self):

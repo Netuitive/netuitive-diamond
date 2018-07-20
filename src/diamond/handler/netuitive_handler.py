@@ -253,7 +253,7 @@ class NetuitiveHandler(Handler):
         if docker:
             try:
 
-                cc = docker.Client(
+                cc = docker.DockerClient(
                     base_url='unix://var/run/docker.sock', version='auto')
                 dockerver = cc.version()
 
