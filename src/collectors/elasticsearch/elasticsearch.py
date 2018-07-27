@@ -14,6 +14,7 @@ parameter the instance alias will be appended to the
 """
 
 import urllib2
+import ssl
 import re
 from diamond.collector import str_to_bool
 
@@ -79,6 +80,11 @@ class ElasticSearchCollector(diamond.collector.Collector):
                 "the YYYY.MM.DD suffix from the index name " +
                 "(e.g. logstash-adm-syslog-2014.01.03) and use that " +
                 "as a bucket for all 'day' index stats.",
+            'ssl_verify_mode':
+                "Specifies whether a certificate is required " +
+                "from the other side of the connection, and whether it will " +
+                "be validated if provided ",
+            'ssl_check_hostname': "enables hostname verification",
         })
         return config_help
 
@@ -96,6 +102,8 @@ class ElasticSearchCollector(diamond.collector.Collector):
             'stats':          ['jvm', 'thread_pool', 'indices'],
             'logstash_mode': False,
             'cluster':       False,
+            'ssl_verify_mode': ssl.CERT_REQUIRED,
+            'ssl_check_hostname': True
         })
         return config
 
@@ -104,9 +112,17 @@ class ElasticSearchCollector(diamond.collector.Collector):
         Execute a ES API call. Convert response into JSON and
         optionally assert its structure.
         """
+        if self.config['scheme'] == 'https':
+            if type(self.config['ssl_check_hostname']) is str:
+                self.config['ssl_check_hostname'] = str_to_bool(
+                    self.config['ssl_check_hostname'])
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = self.config['ssl_check_hostname']
+            ctx.verify_mode = self.config['ssl_verify_mode']
+
         url = '%s://%s:%i/%s' % (scheme, host, port, path)
         try:
-            response = urllib2.urlopen(url)
+            response = urllib2.urlopen(url, context=ctx)
         except Exception, err:
             self.log.error("%s: %s", url, err)
             return False
