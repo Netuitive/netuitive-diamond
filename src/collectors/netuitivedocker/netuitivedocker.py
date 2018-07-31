@@ -23,7 +23,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             self.log.error('docker import failed. NetuitiveDockerCollector disabled')
             self.enabled = False
             return
-        self.client = docker.DockerClient(
+        self.client = docker.APIClient(
             base_url='unix://var/run/docker.sock', version='auto')
 
     def get_default_config_help(self):
@@ -97,7 +97,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         for i in range(len(value)):
                             metric_name = name + ".cpu." + key + str(i)
                             self.publish_counter(metric_name, value[i])
-            
+
             # network metrics
             network = None
 
@@ -112,7 +112,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                     if value is not None:
                         metric_name = name + ".network." + key
                         self.publish_counter(metric_name, value)
-            
+
             # blkio metrics
             #blkio = self.flatten_dict(metrics['blkio_stats'])
             #for key, value in blkio.items():
@@ -143,4 +143,3 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         pool.map(print_metric, containers)
         pool.close()
         pool.join()
-
