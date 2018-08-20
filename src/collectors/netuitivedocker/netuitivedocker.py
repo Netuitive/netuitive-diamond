@@ -12,6 +12,16 @@ except ImportError:
 from diamond.collector import str_to_bool
 
 
+class DockerClient:
+    __instance = None
+
+    @staticmethod
+    def get_instance():
+        if DockerClient.__instance is None:
+            DockerClient.__instance = docker.Client(base_url='unix://var/run/docker.sock', version='auto')
+        return DockerClient.__instance
+    
+
 class NetuitiveDockerCollector(diamond.collector.Collector):
 
     def get_default_config_help(self):
@@ -106,8 +116,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
 
-        cc = docker.Client(
-            base_url='unix://var/run/docker.sock', version='auto')
+        cc = DockerClient.get_instance()
         dockernames = [i['Names'] for i in cc.containers()]
 
         running_containers = len(cc.containers())
