@@ -57,8 +57,6 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         def print_metric(cc, name):
             data = cc.stats(name)
             metrics = json.loads(data.next())
-            if name.find("/") != -1:
-                name = name.rsplit('/', 1)[1]
             # memory metrics
             self.memory = self.flatten_dict(metrics['memory_stats'])
             for key, value in self.memory.items():
@@ -128,7 +126,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         threads = []
 
         for dname in dockernames:
-            t = threading.Thread(target=print_metric, args=(cc, dname[0][1:]))
+            name = next(n for n in dname if n.count('/') == 1)
+            t = threading.Thread(target=print_metric, args=(cc, name[1:]))
             threads.append(t)
             t.start()
 
