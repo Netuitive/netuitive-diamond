@@ -128,6 +128,7 @@ class RabbitMQCollector(diamond.collector.Collector):
             'disk_free',
             'proc_used',
             'proc_total',
+            'running',
         ]
         try:
             client = RabbitMQClient(self.config['host'],
@@ -137,7 +138,7 @@ class RabbitMQCollector(diamond.collector.Collector):
             node_name = client.get_overview()['node']
             node_data = client.get_node(node_name)
             for metric in health_metrics:
-                self.publish('health.{0}'.format(metric), node_data[metric])
+                self.publish('health.{0}'.format(metric), int(node_data[metric]))
             if self.config['cluster']:
                 self.publish('cluster.partitions',
                              len(node_data['partitions']))
