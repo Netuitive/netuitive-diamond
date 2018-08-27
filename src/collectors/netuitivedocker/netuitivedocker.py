@@ -3,8 +3,8 @@ Originally from https://github.com/lesaux/diamond-DockerContainerCollector
 """
 
 import docker
-import threading
 import diamond.collector
+import traceback
 try:
     import json
 except ImportError:
@@ -100,7 +100,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             # blkio metrics
             self.blkio = self.flatten_dict(metrics['blkio_stats'])
             for key, value in self.blkio.items():
-                if value is not None:
+                if value is not None and not isinstance(value, list):
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
 
@@ -123,13 +123,10 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         self.publish('counts.images', image_count)
         self.publish('counts.dangling_images', dangling_image_count)
 
-        threads = []
-
         for dname in dockernames:
             name = next(n for n in dname if n.count('/') == 1)
-            t = threading.Thread(target=print_metric, args=(cc, name[1:]))
-            threads.append(t)
-            t.start()
-
-        for thread in threads:
-            thread.join()
+            try:
+                print_metric(cc, name[1:])
+            except Exception as e:
+                self.log.error('Unable to collect for container ' +
+                               name[1:] + ': ' + traceback.format_exc())
