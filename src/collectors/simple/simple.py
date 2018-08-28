@@ -7,6 +7,7 @@ The SimpleCollector collects one utilization metric for CPU, MEM, Disk I/O, and 
 
 import diamond.collector
 import os
+import psutil
 
 class SimpleCollector(diamond.collector.Collector):
 
@@ -36,6 +37,9 @@ class SimpleCollector(diamond.collector.Collector):
                 if line.startswith('cpu '):
                     elements = line.split()
                     self.collect_cpu_proc(elements)
+        else:
+            total_time = psutil.cpu_times()
+            self.collect_cpu_psutil(total_time)
 
         return True
 
@@ -53,6 +57,19 @@ class SimpleCollector(diamond.collector.Collector):
         guest_nice = self.derivative('cpu.total.guest_nice', long(elements[10]), diamond.collector.MAX_COUNTER)
 
         total = sum([user, nice, system, idle, iowait, irq, softirq, steal, guest, guest_nice])
+
+        # Derivatives take one cycle to warm up
+        if total != 0:
+            self.publish('cpu.total.utilization.percent', (total - idle) / total * 100)
+
+    def collect_cpu_psutil(self, total_time):
+        # Compute all CPU usage values from psutil counter values
+        user = self.derivative('cpu.total.user', total_time.user, diamond.collector.MAX_COUNTER)
+        nice = self.derivative('cpu.total.nice', total_time.nice, diamond.collector.MAX_COUNTER)
+        system = self.derivative('cpu.total.system', total_time.system, diamond.collector.MAX_COUNTER)
+        idle = self.derivative('cpu.total.idle', total_time.idle, diamond.collector.MAX_COUNTER)
+
+        total = sum([user, nice, system, idle])
 
         # Derivatives take one cycle to warm up
         if total != 0:
