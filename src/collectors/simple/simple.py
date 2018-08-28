@@ -7,12 +7,16 @@ The SimpleCollector collects one utilization metric for CPU, MEM, Disk I/O, and 
 
 import diamond.collector
 import os
+import time
 import psutil
 
 class SimpleCollector(diamond.collector.Collector):
 
+    LastCollectTime = None
+
     PROC_STAT = '/proc/stat'
     PROC_MEM = '/proc/meminfo'
+    PROC_DISKSTATS = '/proc/diskstats'
 
     def __init__(self, config=None, handlers=[], name=None, configfile=None):
         super(SimpleCollector, self).__init__(config, handlers, name, configfile)
@@ -49,6 +53,13 @@ class SimpleCollector(diamond.collector.Collector):
             file.close()
 
             self.collect_memory_proc(lines)
+
+        if os.access(self.PROC_DISKSTATS, os.R_OK):
+            file = open(self.PROC_DISKSTATS)
+            lines = file.read().splitlines()
+            file.close()
+
+            self.collect_disk_stats_proc(lines)
 
         return True
 
@@ -99,3 +110,24 @@ class SimpleCollector(diamond.collector.Collector):
         name = name.rstrip(':')
         value = int(value)
         return diamond.convertor.binary.convert(value=value, oldUnit=units, newUnit='byte')
+
+    def collect_disk_stats_proc(self, lines):
+        # Get the latest collection time for the devisor in the disk I/O calculation
+        CollectTime = time.time()
+        time_delta = CollectTime - self.LastCollectTime if self.LastCollectTime else float(self.config['interval'])
+        self.LastCollectTime = CollectTime
+
+        # Compute the I/O usage in ms for all devices during the collection period
+        devices = [line for line in lines if not line.split()[2].startswith('ram') and not line.split()[2].startswith('loop')]
+        io_milliseconds = map(self.disk_stats_proc_line_to_io, devices)
+
+        # Take the maximum utilization during the period
+        max_util = max(map(lambda ms: ms / time_delta / 10.0, io_milliseconds))
+
+        # Derivatives take one cycle to warm up, though 0 utilization is often a reality
+        self.publish('iostat.max_util_percentage', max_util)
+
+    # Convert a /proc/diskstats line to an I/O sample value
+    def disk_stats_proc_line_to_io(self, line):
+        columns = line.split()
+        return self.derivative('iostat.' + columns[2], float(columns[12]), diamond.collector.MAX_COUNTER)
