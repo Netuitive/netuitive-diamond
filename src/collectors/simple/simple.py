@@ -11,7 +11,8 @@ import psutil
 
 class SimpleCollector(diamond.collector.Collector):
 
-    PROC = '/proc/stat'
+    PROC_STAT = '/proc/stat'
+    PROC_MEM = '/proc/meminfo'
 
     def __init__(self, config=None, handlers=[], name=None, configfile=None):
         super(SimpleCollector, self).__init__(config, handlers, name, configfile)
@@ -28,8 +29,8 @@ class SimpleCollector(diamond.collector.Collector):
         return config
 
     def collect(self):
-        if os.access(self.PROC, os.R_OK):
-            file = open(self.PROC)
+        if os.access(self.PROC_STAT, os.R_OK):
+            file = open(self.PROC_STAT)
             lines = file.read().splitlines()
             file.close()
 
@@ -40,6 +41,14 @@ class SimpleCollector(diamond.collector.Collector):
         else:
             total_time = psutil.cpu_times()
             self.collect_cpu_psutil(total_time)
+
+        # Memory collection only exists for /proc/meminfo
+        if os.access(self.PROC_MEM, os.R_OK):
+            file = open(self.PROC_MEM)
+            lines = file.read().splitlines()
+            file.close()
+
+            self.collect_memory_proc(lines)
 
         return True
 
@@ -74,3 +83,19 @@ class SimpleCollector(diamond.collector.Collector):
         # Derivatives take one cycle to warm up
         if total != 0:
             self.publish('cpu.total.utilization.percent', (total - idle) / total * 100)
+
+    def collect_memory_proc(self, lines):
+        # Compute and convert all memory usage in bytes
+        total = self.memory_proc_line_to_bytes(lines[0])
+        free = self.memory_proc_line_to_bytes(lines[1])
+        buffers = self.memory_proc_line_to_bytes(lines[3])
+        cached = self.memory_proc_line_to_bytes(lines[4])
+
+        self.publish('memory.utilizationpercent', 100 - 100 * (buffers + cached + free) / total)
+
+    # Convert a /proc/meminfo line to a byte value
+    def memory_proc_line_to_bytes(self, line):
+        name, value, units = line.split()
+        name = name.rstrip(':')
+        value = int(value)
+        return diamond.convertor.binary.convert(value=value, oldUnit=units, newUnit='byte')
