@@ -60,6 +60,10 @@ class SimpleCollector(diamond.collector.Collector):
             file.close()
 
             self.collect_disk_stats_proc(lines)
+        else:
+            disks = psutil.disk_io_counters(True)
+
+            self.collect_disk_stats_psutil(disks)
 
         return True
 
@@ -131,3 +135,15 @@ class SimpleCollector(diamond.collector.Collector):
     def disk_stats_proc_line_to_io(self, line):
         columns = line.split()
         return self.derivative('iostat.' + columns[2], float(columns[12]), diamond.collector.MAX_COUNTER)
+
+    def collect_disk_stats_psutil(self, disks):
+        # Get the latest collection time for the devisor in the disk I/O calculation
+        CollectTime = time.time()
+        time_delta = CollectTime - self.LastCollectTime if self.LastCollectTime else float(self.config['interval'])
+        self.LastCollectTime = CollectTime
+
+        # Compute the I/O usage in ms for all devices during the collection period and take the maximum
+        max_util = max(map(lambda key_value: self.derivative('iostat.' + key_value[0], key_value[1].read_time + key_value[1].write_time) / time_delta / 10, disks.iteritems()))
+
+        # Derivatives take one cycle to warm up, though 0 utilization is often a reality
+        self.publish('iostat.max_util_percentage', max_util)
