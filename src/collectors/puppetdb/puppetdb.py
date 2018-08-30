@@ -147,7 +147,7 @@ class PuppetDBCollector(diamond.collector.Collector):
 
         self.publish_gauge('num_resources',
                            rawmetrics['num-resources']['Value'])
-        self.publish_gauge('avg-resources-per-node',
+        self.publish_gauge('avg_resources_per_node',
                            rawmetrics['avg-resources-per-node']['Value'])
         self.publish_gauge('catalog_duplicate_pct',
                            rawmetrics['duplicate-pct']['Value'])
