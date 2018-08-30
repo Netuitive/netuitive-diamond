@@ -17,6 +17,7 @@ class SimpleCollector(diamond.collector.Collector):
     PROC_STAT = '/proc/stat'
     PROC_MEM = '/proc/meminfo'
     PROC_DISKSTATS = '/proc/diskstats'
+    PROC_DISKSPACE = '/proc/mounts'
 
     def __init__(self, config=None, handlers=[], name=None, configfile=None):
         super(SimpleCollector, self).__init__(config, handlers, name, configfile)
@@ -29,8 +30,18 @@ class SimpleCollector(diamond.collector.Collector):
         config = super(SimpleCollector, self).get_default_config()
         config.update({
             'path': 'netuitive.linux',
+            'filesystems': 'ext2, ext3, ext4, xfs, glusterfs, nfs, nfs4, ntfs, hfs, fat32, fat16, btrfs',
         })
         return config
+
+    def process_config(self):
+        super(SimpleCollector, self).process_config()
+        self.filesystems = []
+        if isinstance(self.config['filesystems'], basestring):
+            for filesystem in self.config['filesystems'].split(','):
+                self.filesystems.append(filesystem.strip())
+        elif isinstance(self.config['filesystems'], list):
+            self.filesystems = self.config['filesystems']
 
     def collect(self):
         if os.access(self.PROC_STAT, os.R_OK):
@@ -64,6 +75,13 @@ class SimpleCollector(diamond.collector.Collector):
             disks = psutil.disk_io_counters(True)
 
             self.collect_disk_stats_psutil(disks)
+
+        if os.access(self.PROC_DISKSPACE, os.R_OK):
+            file = open(self.PROC_DISKSPACE)
+            lines = file.read().splitlines()
+            file.close()
+
+            self.collect_disk_space_proc(lines)
 
         return True
 
@@ -147,3 +165,24 @@ class SimpleCollector(diamond.collector.Collector):
 
         # Derivatives take one cycle to warm up, though 0 utilization is often a reality
         self.publish('iostat.max_util_percentage', max_util)
+
+    def collect_disk_space_proc(self, lines):
+        # Filter to collectable mount points
+        mount_points = [line.split()[1] for line in lines if self.is_disk_collectable(line.split()[2], line.split()[1], line.split()[0])]
+        # Collect filesystem stats for each mount point
+        fs_stats = map(lambda mount_point: os.statvfs(mount_point), mount_points)
+        # Compute the disk free percent for each mount point
+        free_percents = map(lambda stat: 100 * stat.f_bfree / stat.f_blocks, fs_stats)
+        # Compute the average free percent for all mount points
+        avg_free_percent = sum(free_percents) / float(len(free_percents))
+        self.publish('diskspace.avg_byte_percentused', 100 - avg_free_percent)
+
+    # Return if the current device should be included in the disk space utilization calculation
+    def is_disk_collectable(self, fs_type, mount_point, device):
+        if fs_type not in self.filesystems:
+            return False
+        if mount_point.startswith('/dev') or mount_point.startswith('/proc') or mount_point.startswith('/sys'):
+            return False
+        if '/' in device and mount_point.startswith('/'):
+            return True
+        return False
