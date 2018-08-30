@@ -81,7 +81,13 @@ class SimpleCollector(diamond.collector.Collector):
             lines = file.read().splitlines()
             file.close()
 
-            self.collect_disk_space_proc(lines)
+            # Filter to collectable mount points
+            mount_points = [line.split()[1] for line in lines if self.is_disk_collectable(line.split()[2], line.split()[1], line.split()[0])]
+            self.collect_disk_space_proc(mount_points)
+        else:
+            partitions = psutil.disk_partitions(False)
+            mount_points = map(lambda partition: partition.mountpoint, partitions)
+            self.collect_disk_space_proc(mount_points)
 
         return True
 
@@ -166,9 +172,7 @@ class SimpleCollector(diamond.collector.Collector):
         # Derivatives take one cycle to warm up, though 0 utilization is often a reality
         self.publish('iostat.max_util_percentage', max_util)
 
-    def collect_disk_space_proc(self, lines):
-        # Filter to collectable mount points
-        mount_points = [line.split()[1] for line in lines if self.is_disk_collectable(line.split()[2], line.split()[1], line.split()[0])]
+    def collect_disk_space_proc(self, mount_points):
         # Collect filesystem stats for each mount point
         fs_stats = map(lambda mount_point: os.statvfs(mount_point), mount_points)
         # Compute the disk free percent for each mount point
