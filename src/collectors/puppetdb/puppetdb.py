@@ -102,6 +102,9 @@ class PuppetDBCollector(diamond.collector.Collector):
         'num-resources':
             "metrics/v1/mbeans/puppetlabs.puppetdb." +
             "population:name=num-resources",
+        'avg-resources-per-node':
+            "metrics/v1/mbeans/puppetlabs.puppetdb." +
+            "population:name=avg-resources-per-node",
     }
 
     def get_default_config_help(self):
@@ -143,6 +146,8 @@ class PuppetDBCollector(diamond.collector.Collector):
 
         self.publish_gauge('num_resources',
                            rawmetrics['num-resources']['Value'])
+        self.publish_gauge('avg-resources-per-node',
+                           rawmetrics['avg-resources-per-node']['Value'])
         self.publish_gauge('catalog_duplicate_pct',
                            rawmetrics['duplicate-pct']['Value'])
         self.publish_gauge(
