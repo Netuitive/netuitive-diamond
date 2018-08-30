@@ -26,47 +26,47 @@ class PuppetDBCollector(diamond.collector.Collector):
         'memory':
             "metrics/v1/mbeans/java.lang:type=Memory",
         'queue.AwaitingRetry':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.awaiting-retry",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.awaiting-retry",
         'queue.CommandParseTime':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.command-parse-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.command-parse-time",
         'queue.Depth':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.depth",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.depth",
         'queue.Discarded':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.discarded",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.discarded",
         'queue.Fatal':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.fatal",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.fatal",
         'queue.Invalidated':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.invalidated",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.invalidated",
         'queue.MessagePersistenceTime':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.message-persistence-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.message-persistence-time",
         'queue.Processed':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.processed",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.processed",
         'queue.ProcessingTime':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.processing-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.processing-time",
         'queue.QueueTime':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.queue-time",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.queue-time",
         'queue.Retried':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.retried",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.retried",
         'queue.RetryCounts':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.retry-counts",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.retry-counts",
         'queue.Seen':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.seen",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.seen",
         'queue.Size':
-                "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                "name=global.size",
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.size",
         'processing-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
             "name=global.processing-time",
@@ -79,8 +79,9 @@ class PuppetDBCollector(diamond.collector.Collector):
         'discarded':
             "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
             "name=global.discarded",
-        'fatal': "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
-                 "name=global.fatal",
+        'fatal':
+            "metrics/v1/mbeans/puppetlabs.puppetdb.mq:" +
+            "name=global.fatal",
         'commands.service-time':
             "metrics/v1/mbeans/puppetlabs.puppetdb." +
             "http:name=/pdb/cmd/v1.service-time",
