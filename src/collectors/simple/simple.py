@@ -176,10 +176,10 @@ class SimpleCollector(diamond.collector.Collector):
         # Collect filesystem stats for each mount point
         fs_stats = map(lambda mount_point: os.statvfs(mount_point), mount_points)
         # Compute the disk free percent for each mount point
-        free_percents = map(lambda stat: 100 * stat.f_bfree / stat.f_blocks, fs_stats)
+        free_percents = map(lambda stat: 100.0 * stat.f_bfree / stat.f_blocks, fs_stats)
         # Compute the average free percent for all mount points
         avg_free_percent = sum(free_percents) / float(len(free_percents))
-        self.publish('diskspace.avg_byte_percentused', 100 - avg_free_percent)
+        self.publish('diskspace.avg_byte_percentused', 100.0 - avg_free_percent)
 
     # Return if the current device should be included in the disk space utilization calculation
     def is_disk_collectable(self, fs_type, mount_point, device):
