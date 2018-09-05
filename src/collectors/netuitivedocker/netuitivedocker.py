@@ -29,7 +29,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config = super(NetuitiveDockerCollector, self).get_default_config()
         config.update({
             'path':     'containers',
-            'simple':   'False'
+            'simple':   'False',
+            'minimal':   'False'
         })
         return config
 
@@ -104,6 +105,24 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                     metric_name = name + ".blkio." + key
                     self.publish_counter(metric_name, value)
 
+        def print_minimal_metric(cc, name):
+            data = cc.stats(name)
+            metrics = json.loads(data.next())
+            # memory metrics
+            self.memory = self.flatten_dict(metrics['memory_stats'])
+
+            self.publish(name + '.netuitive.docker.memory.container_memory_percent', 100.0 * self.memory['usage'] / self.memory['limit'])
+
+            # cpu metrics
+            self.cpu = self.flatten_dict(metrics['cpu_stats'])
+
+            usage = self.derivative('cpu.cpu_usage.total_usage', self.cpu['cpu_usage.total_usage'], diamond.collector.MAX_COUNTER)
+            total = self.derivative('cpu.system_cpu_usage', self.cpu['system_cpu_usage'], diamond.collector.MAX_COUNTER)
+
+            # Derivatives take one cycle to warm up
+            if total != 0:
+                self.publish(name + '.netuitive.docker.cpu.container_cpu_percent', 100.0 * usage / total)
+
         cc = docker.Client(
             base_url='unix://var/run/docker.sock', version='auto')
         dockernames = [i['Names'] for i in cc.containers()]
@@ -126,7 +145,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         for dname in dockernames:
             name = next(n for n in dname if n.count('/') == 1)
             try:
-                print_metric(cc, name[1:])
+                print_minimal_metric(cc, name[1:]) if str_to_bool(self.config['minimal']) else print_metric(cc, name[1:])
             except Exception as e:
                 self.log.error('Unable to collect for container ' +
                                name[1:] + ': ' + traceback.format_exc())
