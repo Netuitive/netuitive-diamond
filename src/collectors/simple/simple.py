@@ -9,6 +9,7 @@ import diamond.collector
 import os
 import time
 import psutil
+import re
 
 class SimpleCollector(diamond.collector.Collector):
 
@@ -30,6 +31,7 @@ class SimpleCollector(diamond.collector.Collector):
         config = super(SimpleCollector, self).get_default_config()
         config.update({
             'path': 'netuitive.linux',
+            'devices':  ('(PhysicalDrive[0-9]+$|md[0-9]+$|sd[a-z]+$|x?vd[a-z]+$|disk[0-9]+$|dm\-[0-9]+$|nvme[0-9]+(n[0-9]+)(p[0-9]+)?$)'),
             'filesystems': 'ext2, ext3, ext4, xfs, glusterfs, nfs, nfs4, ntfs, hfs, fat32, fat16, btrfs',
         })
         return config
@@ -145,8 +147,11 @@ class SimpleCollector(diamond.collector.Collector):
         time_delta = CollectTime - self.LastCollectTime if self.LastCollectTime else float(self.config['interval'])
         self.LastCollectTime = CollectTime
 
+        exp = self.config['devices']
+        reg = re.compile(exp)
+
         # Compute the I/O usage in ms for all devices during the collection period
-        devices = [line for line in lines if not line.split()[2].startswith('ram') and not line.split()[2].startswith('loop')]
+        devices = [line for line in lines if reg.match(line.split()[2]) and not line.split()[2].startswith('ram') and not line.split()[2].startswith('loop')]
         io_milliseconds = map(self.disk_stats_proc_line_to_io, devices)
 
         # Take the maximum utilization during the period
@@ -158,7 +163,7 @@ class SimpleCollector(diamond.collector.Collector):
     # Convert a /proc/diskstats line to an I/O sample value
     def disk_stats_proc_line_to_io(self, line):
         columns = line.split()
-        return self.derivative('iostat.' + columns[2], float(columns[12]), diamond.collector.MAX_COUNTER)
+        return self.derivative('iostat.' + columns[2], float(columns[12]), diamond.collector.MAX_COUNTER, time_delta=False)
 
     def collect_disk_stats_psutil(self, disks):
         # Get the latest collection time for the devisor in the disk I/O calculation
@@ -166,8 +171,14 @@ class SimpleCollector(diamond.collector.Collector):
         time_delta = CollectTime - self.LastCollectTime if self.LastCollectTime else float(self.config['interval'])
         self.LastCollectTime = CollectTime
 
+        exp = self.config['devices']
+        reg = re.compile(exp)
+
+        # Filter down devices based on RegEx filtering
+        devices = {key: value for key, value in disks.iteritems() if reg.match(key)}
+
         # Compute the I/O usage in ms for all devices during the collection period and take the maximum
-        max_util = max(map(lambda key_value: self.derivative('iostat.' + key_value[0], key_value[1].read_time + key_value[1].write_time) / time_delta / 10, disks.iteritems()))
+        max_util = max(map(lambda key_value: self.derivative('iostat.' + key_value[0], key_value[1].read_time + key_value[1].write_time) / time_delta / 10, devices.iteritems()))
 
         # Derivatives take one cycle to warm up, though 0 utilization is often a reality
         self.publish('iostat.max_util_percentage', max_util)
