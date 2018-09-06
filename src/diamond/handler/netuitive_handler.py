@@ -381,7 +381,7 @@ class NetuitiveHandler(Handler):
 
             self.element.add_tag('n.collectors', collectors)
 
-            self.element.add_tag('variant', 'SIMPLE' if str_to_bool(c.get('default').get('simple')) else 'FULL')
+            self.element.add_tag('variant', 'SIMPLE' if c.get('SimpleCollector') and str_to_bool(c.get('SimpleCollector').get('enabled')) else 'FULL')
 
         except Exception as e:
             logging.error(e)
