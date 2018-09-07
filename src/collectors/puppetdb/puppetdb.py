@@ -3,16 +3,18 @@
 """
 Collect metrics from Puppet DB Dashboard
 
-#### Dependencies
+# Dependencies
 
  * urllib2
  * json
+ * datetime
 
 """
 
 import urllib2
 import diamond.collector
 from diamond.convertor import time as time_convertor
+from datetime import datetime
 
 try:
     import json
@@ -129,6 +131,55 @@ class PuppetDBCollector(diamond.collector.Collector):
         })
         return config
 
+    def count_nodes(self):
+        now = datetime.utcnow()
+        try:
+            url = "http://%s:%s/%s" % (
+                self.config['host'], int(self.config['port']), "pdb/query/v4/nodes")
+            response = urllib2.urlopen(url)
+        except Exception, e:
+            self.log.error('Couldn\'t connect to puppetdb: %s -> %s', url, e)
+            return {}
+        nodes = json.load(response)
+
+        try:
+            url = "http://%s:%s/%s" % (
+                self.config['host'], int(self.config['port']), "pdb/query/v4/event-counts?query=%5B%22%3D%22%2C%22latest_report%3F%22%2Ctrue%5D&summarize_by=certname")
+            response = urllib2.urlopen(url)
+        except Exception, e:
+            self.log.error('Couldn\'t connect to puppetdb: %s -> %s', url, e)
+            return {}
+        event_counts = json.load(response)
+
+        stats = {
+            'changed': 0,
+            'unchanged': 0,
+            'failed': 0,
+            'unreported': 0,
+            'noop': 0
+        }
+
+        for node in nodes:
+            status = [event for event in event_counts
+                      if event['subject']['title'] == node['certname']]
+            update_delta = now - \
+                datetime.strptime(node['report_timestamp'],
+                                  '%Y-%m-%dT%H:%M:%S.%fZ')
+            if update_delta.days > 0 or update_delta.seconds > 7200:
+                status = 'unreported'
+            if status == 'unreported':
+                stats['unreported'] += 1
+            elif status == 'changed':
+                stats['changed'] += 1
+            elif status == 'failed':
+                stats['failed'] += 1
+            elif status == 'noop':
+                stats['noop'] += 1
+            else:
+                stats['unchanged'] += 1
+
+        return stats
+
     def fetch_metrics(self, url):
         try:
             url = "http://%s:%s/%s" % (
@@ -140,6 +191,7 @@ class PuppetDBCollector(diamond.collector.Collector):
         return json.load(response)
 
     def collect(self):
+        nodestats = self.count_nodes()
         rawmetrics = {}
         for subnode in self.PATHS:
             path = self.PATHS[subnode]
@@ -234,3 +286,8 @@ class PuppetDBCollector(diamond.collector.Collector):
                            rawmetrics['memory']['HeapMemoryUsage']['used'])
         self.publish_gauge('memory.HeapMemoryUsage.committed',
                            rawmetrics['memory']['HeapMemoryUsage']['committed'])
+        self.publish_gauge('nodes.status.unchanged', nodestats['unchanged'])
+        self.publish_gauge('nodes.status.changed', nodestats['changed'])
+        self.publish_gauge('nodes.status.failed', nodestats['failed'])
+        self.publish_gauge('nodes.status.unreported', nodestats['unreported'])
+        self.publish_gauge('nodes.status.pending', nodestats['noop'])
