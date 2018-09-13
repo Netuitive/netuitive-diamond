@@ -102,7 +102,7 @@ class ElasticSearchCollector(diamond.collector.Collector):
             'stats':          ['jvm', 'thread_pool', 'indices'],
             'logstash_mode': False,
             'cluster':       False,
-            'ssl_verify_mode': ssl.CERT_REQUIRED,
+            'ssl_verify_mode': CERT_REQUIRED,
             'ssl_check_hostname': True
         })
         return config
@@ -118,8 +118,14 @@ class ElasticSearchCollector(diamond.collector.Collector):
                     self.config['ssl_check_hostname'])
             ctx = ssl.create_default_context()
             ctx.check_hostname = self.config['ssl_check_hostname']
-            ctx.verify_mode = self.config['ssl_verify_mode']
-
+            if self.config['ssl_verify_mode'] == 'CERT_NONE':
+                ctx.verify_mode = ssl.CERT_NONE
+            elif self.config['ssl_verify_mode'] == 'CERT_OPTIONAL':
+                ctx.verify_mode = ssl.CERT_OPTIONAL
+            elif self.config['ssl_verify_mode'] == 'CERT_REQUIRED':
+                ctx.verify_mode = ssl.CERT_REQUIRED
+            else:
+                self.log.debug("No SSL verify mode set. Defaulting to CERT_REQUIRED.")
         url = '%s://%s:%i/%s' % (scheme, host, port, path)
         try:
             response = urllib2.urlopen(url, context=ctx)
