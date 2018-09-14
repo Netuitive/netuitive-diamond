@@ -102,7 +102,7 @@ class ElasticSearchCollector(diamond.collector.Collector):
             'stats':          ['jvm', 'thread_pool', 'indices'],
             'logstash_mode': False,
             'cluster':       False,
-            'ssl_verify_mode': CERT_REQUIRED,
+            'ssl_verify_mode': 'CERT_REQUIRED',
             'ssl_check_hostname': True
         })
         return config
