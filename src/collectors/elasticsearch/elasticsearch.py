@@ -126,12 +126,19 @@ class ElasticSearchCollector(diamond.collector.Collector):
                 ctx.verify_mode = ssl.CERT_REQUIRED
             else:
                 self.log.debug("No SSL verify mode set. Defaulting to CERT_REQUIRED.")
-        url = '%s://%s:%i/%s' % (scheme, host, port, path)
-        try:
-            response = urllib2.urlopen(url, context=ctx)
-        except Exception, err:
-            self.log.error("%s: %s", url, err)
-            return False
+            url = '%s://%s:%i/%s' % (scheme, host, port, path)
+            try:
+                response = urllib2.urlopen(url, context=ctx)
+            except Exception, err:
+                self.log.error("%s: %s", url, err)
+                return False
+        else:
+            url = '%s://%s:%i/%s' % (scheme, host, port, path)
+            try:
+                response = urllib2.urlopen(url)
+            except Exception, err:
+                self.log.error("%s: %s", url, err)
+                return False
 
         try:
             doc = json.load(response)
