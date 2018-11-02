@@ -49,6 +49,46 @@ class ConsulCollector(diamond.collector.Collector):
             self.log.error("%s: %s", url, err)
             return False
 
+    def collect_service_metrics(self):
+        url = self.config['url']
+        try:
+            services = list(json.load(urllib2.urlopen(
+                url + '/v1/catalog/services')).keys())
+
+            service_status = {'up': 0, 'passing': 0,
+                              'warning': 0, 'critical': 0}
+
+            for service in services:
+                nodes_for_service = self.get_nodes_for_service(service)
+
+                # Find the maximum status for the service on each node
+                node_max_statuses = map(lambda node: self.get_check_max_status(
+                    node['Checks']), nodes_for_service)
+
+                # Calculate the max status of the service across nodes
+                service_max_status = self.get_max_status(node_max_statuses)
+
+                # Increment the count for the service being up and for it's status
+                service_status['up'] += 1
+                service_status[service_max_status] += 1
+
+            for key in service_status.keys():
+                self.publish('service.services_' + key, service_status[key])
+        except Exception, err:
+            self.log.error("%s: %s", url, err)
+            return False
+
+
+    # Get the health details of a given node
+    def get_node_health(self, node):
+        url = self.config['url']
+        return json.load(urllib2.urlopen(url + '/v1/health/node/' + node['Node']))
+
+    # Get the health details of a each node a service lives on for a given service
+    def get_nodes_for_service(self, service):
+        url = self.config['url']
+        return json.load(urllib2.urlopen(url + '/v1/health/service/' + service))
+
     # Get the maximum status for a list of checks
     def get_check_max_status(self, checks):
         statuses = map(lambda check: check['Status'], checks)
@@ -64,3 +104,4 @@ class ConsulCollector(diamond.collector.Collector):
 
     def collect(self):
         self.collect_node_metrics()
+        self.collect_service_metrics()
