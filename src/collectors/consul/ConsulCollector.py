@@ -78,6 +78,27 @@ class ConsulCollector(diamond.collector.Collector):
             self.log.error("%s: %s", url, err)
             return False
 
+    # Collect agent metrics (https://www.consul.io/api/agent.html#view-metrics)
+    def collect_agent_metrics(self):
+        url = self.config['url']
+        try:
+            metrics = json.load(urllib2.urlopen(url + '/v1/agent/metrics'))
+
+            for gauge in metrics['Gauges']:
+                self.publish(self.trimmed_metric_name(
+                    gauge['Name']), gauge['Value'])
+
+            for counter in metrics['Counters']:
+                self.publish(
+                    'counter.' + self.trimmed_metric_name(counter['Name']), counter['Count'])
+
+            for sample in metrics['Samples']:
+                self.publish(self.trimmed_metric_name(
+                    sample['Name']), sample['Mean'])
+
+        except Exception, err:
+            self.log.error("%s: %s", url, err)
+            return False
 
     # Get the health details of a given node
     def get_node_health(self, node):
@@ -102,6 +123,11 @@ class ConsulCollector(diamond.collector.Collector):
             return 'warning'
         return 'passing'
 
+    # Trim the consul. prefix off of agent metrics as it will be readded by this collector
+    def trimmed_metric_name(self, metric):
+        return metric.replace('consul.', '')
+
     def collect(self):
         self.collect_node_metrics()
         self.collect_service_metrics()
+        self.collect_agent_metrics()
