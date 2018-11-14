@@ -14,7 +14,7 @@ ttl = 150
 [port]
 [[echo]]
 number = 8080
-proto = tcp
+protocol = tcp
 ```
 
 """
@@ -64,7 +64,7 @@ class PortCheckCollector(diamond.collector.Collector):
             port_cfg = {}
             for key in ('number',):
                 port_cfg[key] = cfg.get(key, [])
-            for key in ('proto',):
+            for key in ('protocol',):
                 port_cfg[key] = cfg.get(key, [])
             self.ports[port_name] = port_cfg
 
@@ -105,10 +105,10 @@ class PortCheckCollector(diamond.collector.Collector):
 
         for port_name, port_cfg in self.ports.iteritems():
             port = int(port_cfg['number'])
-            if port_cfg['proto'] == []:
+            if port_cfg['protocol'] == []:
                 proto = 'tcp'
             else:
-                proto = str(port_cfg['proto'])
+                proto = str(port_cfg['protocol'])
             stats = get_port_stats(port, proto)
             for stat_name, stat_value in stats.iteritems():
                 if stat_name == 'listen' and stat_value >= 1:
