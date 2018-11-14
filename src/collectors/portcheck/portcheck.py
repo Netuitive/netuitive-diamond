@@ -33,20 +33,20 @@ except ImportError:
     netuitive = None
 
 
-def get_port_stats(port, proto):
+def get_port_stats(port, protocol):
     """
     Iterate over connections and count states for specified port
     :param port: port for which stats are collected
     :return: Counter with port states
     """
     cnts = defaultdict(int)
-    for c in psutil.net_connections(proto):
+    for c in psutil.net_connections(protocol):
         c_port = c.laddr[1]
         if c_port != port:
                 continue
-        if proto == 'udp':
+        if protocol == 'udp':
                 status = 'listen'
-        if proto == 'tcp':
+        if protocol == 'tcp':
                 status = c.status.lower()
         cnts[status] += 1
     return cnts
@@ -90,7 +90,7 @@ class PortCheckCollector(diamond.collector.Collector):
         config.update({
             'path': 'port',
             'port': {},
-            'proto': 'tcp'
+            'protocol': 'tcp'
         })
         return config
 
@@ -106,10 +106,10 @@ class PortCheckCollector(diamond.collector.Collector):
         for port_name, port_cfg in self.ports.iteritems():
             port = int(port_cfg['number'])
             if port_cfg['protocol'] == []:
-                proto = 'tcp'
+                protocol = 'tcp'
             else:
-                proto = str(port_cfg['protocol'])
-            stats = get_port_stats(port, proto)
+                protocol = str(port_cfg['protocol'])
+            stats = get_port_stats(port, protocol)
             for stat_name, stat_value in stats.iteritems():
                 if stat_name == 'listen' and stat_value >= 1:
                     check_name = '%s.%d' % (port_name, port)
