@@ -14,7 +14,7 @@ ttl = 150
 [port]
 [[echo]]
 number = 8080
-
+proto = tcp
 ```
 
 """
@@ -33,20 +33,23 @@ except ImportError:
     netuitive = None
 
 
-def get_port_stats(port):
+def get_port_stats(port, proto):
     """
     Iterate over connections and count states for specified port
     :param port: port for which stats are collected
     :return: Counter with port states
     """
     cnts = defaultdict(int)
-    for c in psutil.net_connections('tcp'):
+    for c in psutil.net_connections(proto):
         c_port = c.laddr[1]
         if c_port != port:
-            continue
-        status = c.status.lower()
+                continue
+        if proto == 'udp':
+                status = 'listen'
+        if proto == 'tcp':
+                status = c.status.lower()
         cnts[status] += 1
-    return cnts
+        return cnts
 
 
 class PortCheckCollector(diamond.collector.Collector):
@@ -60,6 +63,8 @@ class PortCheckCollector(diamond.collector.Collector):
         for port_name, cfg in self.config['port'].items():
             port_cfg = {}
             for key in ('number',):
+                port_cfg[key] = cfg.get(key, [])
+            for key in ('proto',):
                 port_cfg[key] = cfg.get(key, [])
             self.ports[port_name] = port_cfg
 
@@ -85,6 +90,7 @@ class PortCheckCollector(diamond.collector.Collector):
         config.update({
             'path': 'port',
             'port': {},
+            'proto': 'tcp'
         })
         return config
 
@@ -99,8 +105,11 @@ class PortCheckCollector(diamond.collector.Collector):
 
         for port_name, port_cfg in self.ports.iteritems():
             port = int(port_cfg['number'])
-            stats = get_port_stats(port)
-
+            if port_cfg['proto'] == []:
+                proto = 'tcp'
+            else:
+                proto = str(port_cfg['proto'])
+            stats = get_port_stats(port, proto)
             for stat_name, stat_value in stats.iteritems():
                 if stat_name == 'listen' and stat_value >= 1:
                     check_name = '%s.%d' % (port_name, port)
