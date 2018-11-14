@@ -49,7 +49,7 @@ def get_port_stats(port, proto):
         if proto == 'tcp':
                 status = c.status.lower()
         cnts[status] += 1
-        return cnts
+    return cnts
 
 
 class PortCheckCollector(diamond.collector.Collector):
