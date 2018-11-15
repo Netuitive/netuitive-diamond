@@ -34,6 +34,9 @@ class DockerCollector(diamond.collector.Collector):
         "cpu_stats.cpu_usage.usage_in_kernelmode": "cpu.kernelmode",
         "cpu_stats.cpu_usage.usage_in_usermode": "cpu.usermode",
         "cpu_stats.system_cpu_usage": "cpu.system",
+
+        # uptime stats
+        
     }
 
     def get_default_config_help(self):
