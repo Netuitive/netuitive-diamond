@@ -30,7 +30,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config.update({
             'path':     'containers',
             'simple':   'False',
-            'minimal':   'False'
+            'minimal':   'False',
+            'uptime':   'False'
         })
         return config
 
@@ -123,6 +124,33 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             if total != 0:
                 self.publish(name + '.netuitive.docker.cpu.container_cpu_percent', 100.0 * usage / total)
 
+        def print_uptime(cc):
+            """
+            Publishes containers' uptime
+            """
+            for i in cc.containers():
+                name = i['Names'][0][1:]
+                try:
+                    if 'About' in i['Status']:
+                        status = 1
+                    else:
+                        status = [int(s) for s in i['Status'].split() if s.isdigit()][0]	
+
+                    uptime_minutes = 0
+                    if 'day' in i['Status']:
+                        uptime_minutes = status * 24 * 60
+                    elif 'hour' in i['Status']:
+                        uptime_minutes = status * 60
+                    elif 'minute' in i['Status']:
+                        uptime_minutes = status
+                    
+                    self.publish_counter(name + '.uptime.minutes', uptime_minutes)
+
+                except Exception as e:
+                    self.log.error('Unable to collect uptime for container ' +
+                                name + ': ' + traceback.format_exc())
+                
+
         cc = docker.Client(
             base_url='unix://var/run/docker.sock', version='auto')
         dockernames = [i['Names'] for i in cc.containers()]
@@ -149,3 +177,6 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             except Exception as e:
                 self.log.error('Unable to collect for container ' +
                                name[1:] + ': ' + traceback.format_exc())
+        
+        if str_to_bool(self.config['uptime']):
+            print_uptime(cc)
