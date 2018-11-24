@@ -137,14 +137,21 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                         status = [int(s) for s in i['Status'].split() if s.isdigit()][0]	
 
                     uptime_minutes = 0
-                    if 'day' in i['Status']:
-                        uptime_minutes = status * 24 * 60
+                    if 'year' in i['Status']:
+                        uptime_minutes = status * 60 * 24 * 365
+                    elif 'month' in i['Status']:
+                        uptime_minutes = status * 60 * 24 * 31
+                    elif 'day' in i['Status']:
+                        uptime_minutes = status * 60 * 24
                     elif 'hour' in i['Status']:
                         uptime_minutes = status * 60
                     elif 'minute' in i['Status']:
                         uptime_minutes = status
+                    elif 'week' in i['Status']:
+                        uptime_minutes = status * 60 * 24 * 7
                     
-                    self.publish_counter(name + '.uptime.minutes', uptime_minutes)
+                    if uptime_minutes is not None and not isinstance(uptime_minutes, list):
+                        self.publish(name + '.netuitive.docker.uptime.minutes', uptime_minutes)
 
                 except Exception as e:
                     self.log.error('Unable to collect uptime for container ' +
