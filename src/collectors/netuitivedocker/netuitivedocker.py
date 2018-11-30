@@ -10,6 +10,7 @@ try:
 except ImportError:
     import simplejson as json
 from diamond.collector import str_to_bool
+from datetime import datetime
 
 
 class NetuitiveDockerCollector(diamond.collector.Collector):
@@ -30,7 +31,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config.update({
             'path':     'containers',
             'simple':   'False',
-            'minimal':   'False'
+            'minimal':   'False',
+            'uptime':   'False'
         })
         return config
 
@@ -123,9 +125,16 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             if total != 0:
                 self.publish(name + '.netuitive.docker.cpu.container_cpu_percent', 100.0 * usage / total)
 
+        def collect_uptime(name, started_at):
+            start_date = datetime.strptime(str(started_at).split(".")[0], "%Y-%m-%dT%H:%M:%S")
+            now = datetime.now()
+            uptime = now - start_date
+            self.publish(name + '.netuitive.docker.uptime.seconds', int(uptime.total_seconds()))
+
+
         cc = docker.Client(
             base_url='unix://var/run/docker.sock', version='auto')
-        dockernames = [i['Names'] for i in cc.containers()]
+        dockernames = [(i['Names'], i['Id']) for i in cc.containers()]
 
         running_containers = len(cc.containers())
         all_containers = len(cc.containers(all=True))
@@ -142,9 +151,11 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         self.publish('counts.images', image_count)
         self.publish('counts.dangling_images', dangling_image_count)
 
-        for dname in dockernames:
+        for dname, did in dockernames:
             name = next(n for n in dname if n.count('/') == 1)
             try:
+                if str_to_bool(self.config['uptime']):
+                    collect_uptime(name[1:], cc.inspect_container(did)['State']['StartedAt'])
                 print_minimal_metric(cc, name[1:]) if str_to_bool(self.config['minimal']) else print_metric(cc, name[1:])
             except Exception as e:
                 self.log.error('Unable to collect for container ' +
