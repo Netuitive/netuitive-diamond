@@ -12,7 +12,3 @@ class ConcurrentRotatingFileHandler(TRFH):
         except IOError:
             sys.stderr.write('ConcurrentRotatingFileHandler received a IOError!')
             sys.stderr.flush()
-
-
-
-
