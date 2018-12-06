@@ -74,6 +74,8 @@ class RabbitMQClient(object):
     def get_node(self, node):
         return self.do_call('nodes/%s' % node)
 
+    def get_shovels(self):
+        return self.do_call('shovels')
 
 class RabbitMQCollector(diamond.collector.Collector):
 
@@ -144,6 +146,15 @@ class RabbitMQCollector(diamond.collector.Collector):
                              len(node_data['partitions']))
                 content = client.get_nodes()
                 self.publish('cluster.nodes', len(content))
+            shovels = client.get_shovels()
+            for shovel in shovels:
+                shovel_state = shovel["state"]
+                if shovel_state == "running":
+                    shovel_state = 1
+                else:
+                    shovel_state = 0
+                shovel_name = shovel["name"]
+                self.publish('shovels.' + shovel_name + '.state'.format(shovel), shovel_state)
         except Exception, e:
             self.log.error('Couldnt connect to rabbitmq %s', e)
             return {}
