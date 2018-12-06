@@ -94,6 +94,9 @@ class RabbitMQCollector(diamond.collector.Collector):
             'A list of vhosts and queues for which we want to collect',
             'queues_ignored':
             'A list of queues or regexes for queue names not to report on.',
+            'shovels':
+            'If shovels are configured for this node, will collect shovel',
+            'state'
             'cluster':
             'If this node is part of a cluster, will collect metrics on the'
             ' cluster health'
@@ -114,6 +117,7 @@ class RabbitMQCollector(diamond.collector.Collector):
             'replace_slash': False,
             'queues_ignored': '',
             'cluster': False,
+            'shovels': False,
             'scheme': 'http',
         })
         return config
@@ -146,15 +150,16 @@ class RabbitMQCollector(diamond.collector.Collector):
                              len(node_data['partitions']))
                 content = client.get_nodes()
                 self.publish('cluster.nodes', len(content))
-            shovels = client.get_shovels()
-            for shovel in shovels:
-                shovel_state = shovel["state"]
-                if shovel_state == "running":
-                    shovel_state = 1
-                else:
-                    shovel_state = 0
-                shovel_name = shovel["name"]
-                self.publish('shovels.' + shovel_name + '.state'.format(shovel), shovel_state)
+            if self.config['shovels']:
+                shovels = client.get_shovels()
+                for shovel in shovels:
+                    shovel_state = shovel["state"]
+                    if shovel_state == "running":
+                        shovel_state = 1
+                    else:
+                        shovel_state = 0
+                    shovel_name = shovel["name"]
+                    self.publish('shovels.' + shovel_name + '.state'.format(shovel), shovel_state)
         except Exception, e:
             self.log.error('Couldnt connect to rabbitmq %s', e)
             return {}
