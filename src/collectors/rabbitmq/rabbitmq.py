@@ -153,11 +153,7 @@ class RabbitMQCollector(diamond.collector.Collector):
             if self.config['shovels']:
                 shovels = client.get_shovels()
                 for shovel in shovels:
-                    shovel_state = shovel["state"]
-                    if shovel_state == "running":
-                        shovel_state = 1
-                    else:
-                        shovel_state = 0
+                    shovel_state = 1 if shovel["state"] == "running" else 0
                     shovel_name = shovel["name"]
                     self.publish('shovels.' + shovel_name + '.state'.format(shovel), shovel_state)
         except Exception, e:
