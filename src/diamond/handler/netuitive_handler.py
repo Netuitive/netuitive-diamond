@@ -140,7 +140,7 @@ class NetuitiveHandler(Handler):
             self._add_collectors()
 
             self.flush_time = 0
-            self.aws_meta_counter = 0
+            self.aws_meta_state = 0
 
             try:
                 self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
@@ -277,7 +277,7 @@ class NetuitiveHandler(Handler):
             resp = urllib2.urlopen(request, timeout=1).read()
             j = json.loads(resp)
 
-            if j and self.aws_meta_counter < 1:
+            if j and self.aws_meta_state < 1:
                 for k, v in j.items():
                     if type(v) is list:
                         vl = ', '.join(v)
@@ -293,7 +293,7 @@ class NetuitiveHandler(Handler):
 
                     if k.lower() == 'accountid':
                         accountid = v
-                self.aws_meta_counter = 1
+                self.aws_meta_state = 1
 
                 try:
                     # old fqn format
