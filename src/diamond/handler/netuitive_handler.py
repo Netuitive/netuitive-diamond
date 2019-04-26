@@ -133,7 +133,6 @@ class NetuitiveHandler(Handler):
                 self.config['trim_backlog_multiplier'])
 
             self._add_sys_meta()
-            #self._add_aws_meta()
             self._add_docker_meta()
             self._add_azure_meta()
             self._add_config_tags()
@@ -279,16 +278,11 @@ class NetuitiveHandler(Handler):
             j = json.loads(resp)
 
             if j and self.aws_meta_counter < 1:
-                #status_v = ''
                 for k, v in j.items():
                     if type(v) is list:
                         vl = ', '.join(v)
                         v = vl
-                    #logging.debug(str(type(v)))
-                    #n = 'dima'    
-                    #if n != 'ryan' and self.aws_meta_counter < 1:
                        
-                    #if self.aws_meta_counter == 1:
                     self.element.add_attribute(k, v)
 
                     if k.lower() == 'instanceid':
