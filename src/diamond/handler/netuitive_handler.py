@@ -133,7 +133,7 @@ class NetuitiveHandler(Handler):
                 self.config['trim_backlog_multiplier'])
 
             self._add_sys_meta()
-            self._add_aws_meta()
+            #self._add_aws_meta()
             self._add_docker_meta()
             self._add_azure_meta()
             self._add_config_tags()
@@ -141,6 +141,7 @@ class NetuitiveHandler(Handler):
             self._add_collectors()
 
             self.flush_time = 0
+            self.aws_meta_counter = 0
 
             try:
                 self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
@@ -277,29 +278,37 @@ class NetuitiveHandler(Handler):
             resp = urllib2.urlopen(request, timeout=1).read()
             j = json.loads(resp)
 
-            for k, v in j.items():
-                if type(v) is list:
-                    vl = ', '.join(v)
-                    v = vl
-                self.element.add_attribute(k, v)
+            if j and self.aws_meta_counter < 1:
+                #status_v = ''
+                for k, v in j.items():
+                    if type(v) is list:
+                        vl = ', '.join(v)
+                        v = vl
+                    #logging.debug(str(type(v)))
+                    #n = 'dima'    
+                    #if n != 'ryan' and self.aws_meta_counter < 1:
+                       
+                    #if self.aws_meta_counter == 1:
+                    self.element.add_attribute(k, v)
 
-                if k.lower() == 'instanceid':
-                    instanceid = v
+                    if k.lower() == 'instanceid':
+                        instanceid = v
 
-                if k.lower() == 'region':
-                    region = v
+                    if k.lower() == 'region':
+                        region = v
 
-                if k.lower() == 'accountid':
-                    accountid = v
+                    if k.lower() == 'accountid':
+                        accountid = v
+                self.aws_meta_counter = 1
 
             try:
                 # old fqn format
                 child = '{0}:{1}'.format(region, instanceid)
-                self.element.add_relation(child)
+                #self.element.add_relation(child)
 
                 # new fqn format
                 child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
-                self.element.add_relation(child)
+                #self.element.add_relation(child)
 
             except Exception as e:
                 pass
@@ -431,6 +440,8 @@ class NetuitiveHandler(Handler):
                              len(self.element.metrics) - abs(trim_offset),
                              abs(trim_offset))
                 self.element.metrics = self.element.metrics[trim_offset:]
+
+            self._add_aws_meta()
 
             self.api.post(self.element)
             if self.config['write_metric_fqns']:
