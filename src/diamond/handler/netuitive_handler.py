@@ -272,45 +272,47 @@ class NetuitiveHandler(Handler):
     def _add_aws_meta(self):
         url = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
 
-        try:
-            request = urllib2.Request(url)
-            resp = urllib2.urlopen(request, timeout=1).read()
-            j = json.loads(resp)
+        if self.aws_meta_state < 1:
+        
+            try:
+                request = urllib2.Request(url)
+                resp = urllib2.urlopen(request, timeout=1).read()
+                j = json.loads(resp)
 
-            if j and self.aws_meta_state < 1:
-                for k, v in j.items():
-                    if type(v) is list:
-                        vl = ', '.join(v)
-                        v = vl
-                       
-                    self.element.add_attribute(k, v)
+                if j:
+                    for k, v in j.items():
+                        if type(v) is list:
+                            vl = ', '.join(v)
+                            v = vl
+                            
+                        self.element.add_attribute(k, v)
 
-                    if k.lower() == 'instanceid':
-                        instanceid = v
+                        if k.lower() == 'instanceid':
+                            instanceid = v
 
-                    if k.lower() == 'region':
-                        region = v
+                        if k.lower() == 'region':
+                            region = v
 
-                    if k.lower() == 'accountid':
-                        accountid = v
-                self.aws_meta_state = 1
+                        if k.lower() == 'accountid':
+                            accountid = v
+                    self.aws_meta_state = 1
 
-                try:
-                    # old fqn format
-                    child = '{0}:{1}'.format(region, instanceid)
-                    self.element.add_relation(child)
+                    try:
+                        # old fqn format
+                        child = '{0}:{1}'.format(region, instanceid)
+                        self.element.add_relation(child)
 
-                    # new fqn format
-                    child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
-                    self.element.add_relation(child)
+                        # new fqn format
+                        child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
+                        self.element.add_relation(child)
 
 
-                except Exception as e:
-                    pass
+                    except Exception as e:
+                        pass
 
-        except Exception as e:
-            logging.debug(e)
-            pass
+            except Exception as e:
+                logging.debug(e)
+                pass
 
     def _add_azure_meta(self):
         url = 'http://169.254.169.254/metadata/v1/InstanceInfo'
