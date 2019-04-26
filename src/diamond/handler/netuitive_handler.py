@@ -301,17 +301,18 @@ class NetuitiveHandler(Handler):
                         accountid = v
                 self.aws_meta_counter = 1
 
-            try:
-                # old fqn format
-                child = '{0}:{1}'.format(region, instanceid)
-                #self.element.add_relation(child)
+                try:
+                    # old fqn format
+                    child = '{0}:{1}'.format(region, instanceid)
+                    self.element.add_relation(child)
 
-                # new fqn format
-                child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
-                #self.element.add_relation(child)
+                    # new fqn format
+                    child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
+                    self.element.add_relation(child)
 
-            except Exception as e:
-                pass
+
+                except Exception as e:
+                    pass
 
         except Exception as e:
             logging.debug(e)
