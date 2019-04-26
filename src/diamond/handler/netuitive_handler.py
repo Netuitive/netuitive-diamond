@@ -311,7 +311,7 @@ class NetuitiveHandler(Handler):
                         pass
 
             except Exception as e:
-                logging.debug(e)
+                logging.debug('Couldnt get AWS metadata')
                 pass
 
     def _add_azure_meta(self):
