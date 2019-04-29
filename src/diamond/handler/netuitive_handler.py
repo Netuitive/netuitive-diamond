@@ -133,7 +133,6 @@ class NetuitiveHandler(Handler):
                 self.config['trim_backlog_multiplier'])
 
             self._add_sys_meta()
-            self._add_aws_meta()
             self._add_docker_meta()
             self._add_azure_meta()
             self._add_config_tags()
@@ -141,6 +140,7 @@ class NetuitiveHandler(Handler):
             self._add_collectors()
 
             self.flush_time = 0
+            self.aws_meta_state = 0
 
             try:
                 self.config['write_metric_fqns'] = str_to_bool(self.config['write_metric_fqns'])
@@ -272,41 +272,47 @@ class NetuitiveHandler(Handler):
     def _add_aws_meta(self):
         url = 'http://169.254.169.254/latest/dynamic/instance-identity/document'
 
-        try:
-            request = urllib2.Request(url)
-            resp = urllib2.urlopen(request, timeout=1).read()
-            j = json.loads(resp)
-
-            for k, v in j.items():
-                if type(v) is list:
-                    vl = ', '.join(v)
-                    v = vl
-                self.element.add_attribute(k, v)
-
-                if k.lower() == 'instanceid':
-                    instanceid = v
-
-                if k.lower() == 'region':
-                    region = v
-
-                if k.lower() == 'accountid':
-                    accountid = v
-
+        if self.aws_meta_state < 1:
+        
             try:
-                # old fqn format
-                child = '{0}:{1}'.format(region, instanceid)
-                self.element.add_relation(child)
+                request = urllib2.Request(url)
+                resp = urllib2.urlopen(request, timeout=1).read()
+                j = json.loads(resp)
 
-                # new fqn format
-                child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
-                self.element.add_relation(child)
+                if j:
+                    for k, v in j.items():
+                        if type(v) is list:
+                            vl = ', '.join(v)
+                            v = vl
+                            
+                        self.element.add_attribute(k, v)
+
+                        if k.lower() == 'instanceid':
+                            instanceid = v
+
+                        if k.lower() == 'region':
+                            region = v
+
+                        if k.lower() == 'accountid':
+                            accountid = v
+                    self.aws_meta_state = 1
+
+                    try:
+                        # old fqn format
+                        child = '{0}:{1}'.format(region, instanceid)
+                        self.element.add_relation(child)
+
+                        # new fqn format
+                        child = '{0}:EC2:{1}:{2}'.format(accountid, region, instanceid)
+                        self.element.add_relation(child)
+
+
+                    except Exception as e:
+                        pass
 
             except Exception as e:
+                logging.debug('Couldnt get AWS metadata')
                 pass
-
-        except Exception as e:
-            logging.debug(e)
-            pass
 
     def _add_azure_meta(self):
         url = 'http://169.254.169.254/metadata/v1/InstanceInfo'
@@ -431,6 +437,8 @@ class NetuitiveHandler(Handler):
                              len(self.element.metrics) - abs(trim_offset),
                              abs(trim_offset))
                 self.element.metrics = self.element.metrics[trim_offset:]
+
+            self._add_aws_meta()
 
             self.api.post(self.element)
             if self.config['write_metric_fqns']:
