@@ -1,7 +1,11 @@
 # coding=utf-8
 
 """
-The BaseCollector collects CPU/MEM/Disk/Network metrics
+The BaseCollector collects CPU/MEM/Disk/Network metrics.
+
+Enabling the base collector will automatically disable collection for these collectors independently.
+This collector was created to reduce the resource usage of the agent as running these 7 collectors separately
+requires more resources than running them all in one thread. All other behavior is the same.
 
 #### Dependencies
 
