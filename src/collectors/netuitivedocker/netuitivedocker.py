@@ -30,7 +30,10 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
         config = super(NetuitiveDockerCollector, self).get_default_config()
         config.update({
             'path':     'containers',
+            # Simple mode sends a reduced number of metrics. Only memory metrics which start with `total` and top level CPU metrics are published
             'simple':   'False',
+            # Minimal mode locally computes and publishes only `container_memory_percent` and `container_cpu_percent`
+            # Minimal mode overrides simple mode
             'minimal':   'False',
             'uptime':   'False'
         })

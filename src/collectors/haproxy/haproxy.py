@@ -19,6 +19,13 @@ import diamond.collector
 
 
 class HAProxyCollector(diamond.collector.Collector):
+    COUNTER_METRICS = [
+        'bin', 'bout', 'chkdown', 'chkfail', 'cli_abrt', 'comp_byp', 'comp_in',
+        'comp_out', 'comp_rsp', 'conn_tot', 'downtime', 'dreq', 'dresp',
+        'econ', 'ereq', 'eresp', 'hrsp_1xx', 'hrsp_2xx', 'hrsp_3xx',
+        'hrsp_4xx', 'hrsp_5xx', 'hrsp_other', 'intercepted', 'lbtot',
+        'srv_abrt', 'stot', 'wredis', 'wretr'
+    ]
 
     def get_default_config_help(self):
         config_help = super(HAProxyCollector, self).get_default_config_help()
@@ -167,7 +174,13 @@ class HAProxyCollector(diamond.collector.Collector):
                     continue
 
                 stat_name = '%s.%s' % (metric_name, headings[index])
-                self.publish(stat_name, metric_value, metric_type='GAUGE')
+                self.publish(stat_name, metric_value, metric_type=self._metric_type(headings[index]))
+
+    def _metric_type(self, metric_name):
+        if metric_name in self.COUNTER_METRICS:
+            return 'COUNTER'
+        else:
+            return 'GAUGE'
 
     def collect(self):
         if 'servers' in self.config:
