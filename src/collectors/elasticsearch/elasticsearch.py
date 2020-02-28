@@ -274,11 +274,12 @@ class ElasticSearchCollector(diamond.collector.Collector):
 
         metrics['indices.datastore.size'] = indices['store']['size_in_bytes']
 
-        transport = data['transport']
-        metrics['transport.rx.count'] = transport['rx_count']
-        metrics['transport.rx.size'] = transport['rx_size_in_bytes']
-        metrics['transport.tx.count'] = transport['tx_count']
-        metrics['transport.tx.size'] = transport['tx_size_in_bytes']
+        if 'transport' in metrics:
+            transport = data['transport']
+            metrics['transport.rx.count'] = transport['rx_count']
+            metrics['transport.rx.size'] = transport['rx_size_in_bytes']
+            metrics['transport.tx.count'] = transport['tx_count']
+            metrics['transport.tx.size'] = transport['tx_size_in_bytes']
 
         # elasticsearch < 0.90RC2
         if 'cache' in indices:
