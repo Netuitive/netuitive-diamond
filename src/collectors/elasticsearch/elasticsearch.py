@@ -274,7 +274,7 @@ class ElasticSearchCollector(diamond.collector.Collector):
 
         metrics['indices.datastore.size'] = indices['store']['size_in_bytes']
 
-        if 'transport' in metrics:
+        if 'transport' in data:
             transport = data['transport']
             metrics['transport.rx.count'] = transport['rx_count']
             metrics['transport.rx.size'] = transport['rx_size_in_bytes']
@@ -355,6 +355,10 @@ class ElasticSearchCollector(diamond.collector.Collector):
                          ['process', 'mem', 'share_in_bytes'])
         self._add_metric(metrics, 'process.mem.virtual', data,
                          ['process', 'mem', 'total_virtual_in_bytes'])
+        self._add_metric(metrics, 'process.open_file_descriptors', data,
+                         ['process', 'open_file_descriptors'])
+        self._add_metric(metrics, 'process.max_file_descriptors', data,
+                         ['process', 'max_file_descriptors'])
 
         #
         # filesystem (may not be present, depending on access restrictions)
