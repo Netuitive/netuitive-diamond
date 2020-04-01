@@ -282,4 +282,4 @@ class PuppetDBCollector(diamond.collector.Collector):
         self.publish_gauge('nodes.status.changed', nodestats['changed'])
         self.publish_gauge('nodes.status.failed', nodestats['failed'])
         self.publish_gauge('nodes.status.unreported', nodestats['unreported'])
-        self.publish_gauge('nodes.status.pending', nodestats['noop'])
+        self.publish_gauge('nodes.status.noops', nodestats['noops'])
