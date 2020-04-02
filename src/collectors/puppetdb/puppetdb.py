@@ -270,8 +270,7 @@ class PuppetDBCollector(diamond.collector.Collector):
                            rawmetrics['memory']['HeapMemoryUsage']['used'])
         self.publish_gauge('memory.HeapMemoryUsage.committed',
                            rawmetrics['memory']['HeapMemoryUsage']['committed'])
-        self.publish_gauge('nodes.status.unchanged', nodestats['unchanged'])
-        self.publish_gauge('nodes.status.changed', nodestats['changed'])
-        self.publish_gauge('nodes.status.failed', nodestats['failed'])
-        self.publish_gauge('nodes.status.unreported', nodestats['unreported'])
+        self.publish_gauge('nodes.status.failures', nodestats['failures'])
+        self.publish_gauge('nodes.status.skips', nodestats['skips'])
+        self.publish_gauge('nodes.status.successes', nodestats['successes'])
         self.publish_gauge('nodes.status.noops', nodestats['noops'])
