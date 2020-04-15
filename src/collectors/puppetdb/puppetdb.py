@@ -144,7 +144,7 @@ class PuppetDBCollector(diamond.collector.Collector):
 
         try:
             url = "http://%s:%s/%s" % (
-                self.config['host'], int(self.config['port']), "pdb/query/v4/events?query=%5B%22%3D%22%2C%22latest_report%3F%22%2Ctrue%5D")
+                self.config['host'], int(self.config['port']), "pdb/query/v4/events?query=%5B%22extract%22%2C%5B%22status%22%2C%22certname%22%5D%2C%5B%22%3D%22%2C%22latest_report%3F%22%2Ctrue%5D%5D")
             response = urllib2.urlopen(url)
         except Exception, e:
             self.log.error('Couldn\'t connect to puppetdb: %s -> %s', url, e)
