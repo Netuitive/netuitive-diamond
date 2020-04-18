@@ -140,20 +140,20 @@ class PuppetDBCollector(diamond.collector.Collector):
         event_counts = json.load(response)
 
         stats = {
-            'failures': 0,
-            'skips': 0,
             'successes': 0,
+            'skips': 0,
+            'failures': 0,
             'noops': 0
         }
 
         for event in event_counts:
             status = event['status']
-            if status == 'failure':
-                stats['failures'] += 1
+            if status == 'success':
+                stats['successes'] += 1
             elif status == 'skipped':
                 stats['skips'] += 1
-            elif status == 'success':
-                stats['successes'] += 1
+            elif status == 'failure':
+                stats['failures'] += 1
             elif status == 'noop':
                 stats['noops'] += 1
             else:
