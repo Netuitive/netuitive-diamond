@@ -7,14 +7,12 @@ Collect metrics from Puppet DB Dashboard
 
  * urllib2
  * json
- * datetime
 
 """
 
 import urllib2
 import diamond.collector
 from diamond.convertor import time as time_convertor
-from datetime import datetime
 
 try:
     import json
@@ -131,17 +129,7 @@ class PuppetDBCollector(diamond.collector.Collector):
         })
         return config
 
-    def count_nodes(self):
-        now = datetime.utcnow()
-        try:
-            url = "http://%s:%s/%s" % (
-                self.config['host'], int(self.config['port']), "pdb/query/v4/nodes")
-            response = urllib2.urlopen(url)
-        except Exception, e:
-            self.log.error('Couldn\'t connect to puppetdb: %s -> %s', url, e)
-            return {}
-        nodes = json.load(response)
-
+    def count_events(self):
         try:
             url = "http://%s:%s/%s" % (
                 self.config['host'], int(self.config['port']), "pdb/query/v4/events?query=%5B%22extract%22%2C%5B%22status%22%2C%22certname%22%5D%2C%5B%22%3D%22%2C%22latest_report%3F%22%2Ctrue%5D%5D")
@@ -152,23 +140,24 @@ class PuppetDBCollector(diamond.collector.Collector):
         event_counts = json.load(response)
 
         stats = {
-            'failures': 0,
-            'skips': 0,
             'successes': 0,
+            'skips': 0,
+            'failures': 0,
             'noops': 0
         }
 
-        for node in nodes:
-            status = [event['status'] for event in event_counts
-                      if event['certname'] == node['certname']]
-            if 'failure' in status:
-                stats['failures'] += status.count('failure')
-            if 'skipped' in status:
-                stats['skips'] += status.count('skipped')
-            if 'success' in status:
-                stats['successes'] += status.count('success')
-            if 'noop' in status:
-                stats['noops'] += status.count('noop')
+        for event in event_counts:
+            status = event['status']
+            if status == 'success':
+                stats['successes'] += 1
+            elif status == 'skipped':
+                stats['skips'] += 1
+            elif status == 'failure':
+                stats['failures'] += 1
+            elif status == 'noop':
+                stats['noops'] += 1
+            else:
+                self.log.debug('Unrecognized node event status')
 
         return stats
 
@@ -183,7 +172,7 @@ class PuppetDBCollector(diamond.collector.Collector):
         return json.load(response)
 
     def collect(self):
-        nodestats = self.count_nodes()
+        nodestats = self.count_events()
         rawmetrics = {}
         for subnode in self.PATHS:
             path = self.PATHS[subnode]
