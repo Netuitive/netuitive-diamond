@@ -87,7 +87,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                             self.metric_name = name + ".cpu." + key + str(i)
                             self.publish_counter(
                                 self.metric_name, self.value[i])
-            
+
             # network metrics
             self.network = None
 
@@ -102,7 +102,7 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
                     if value is not None:
                         metric_name = name + ".network." + key
                         self.publish_counter(metric_name, value)
-            
+
             # blkio metrics
             self.blkio = self.flatten_dict(metrics['blkio_stats'])
             for key, value in self.blkio.items():
@@ -121,8 +121,8 @@ class NetuitiveDockerCollector(diamond.collector.Collector):
             # cpu metrics
             self.cpu = self.flatten_dict(metrics['cpu_stats'])
 
-            usage = self.derivative('cpu.cpu_usage.total_usage', self.cpu['cpu_usage.total_usage'], diamond.collector.MAX_COUNTER)
-            total = self.derivative('cpu.system_cpu_usage', self.cpu['system_cpu_usage'], diamond.collector.MAX_COUNTER)
+            usage = self.derivative('cpu.cpu_usage.total_usage', self.cpu['cpu_usage.total_usage'])
+            total = self.derivative('cpu.system_cpu_usage', self.cpu['system_cpu_usage'])
 
             # Derivatives take one cycle to warm up
             if total != 0:
