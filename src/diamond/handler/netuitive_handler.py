@@ -195,6 +195,25 @@ class NetuitiveHandler(Handler):
             'trim_backlog_multiplier': 4,
         })
         return config
+       
+       def get_default_config(self):
+        """
+        Return the default config for the handler
+        """
+
+        config = super(NetuitiveHandlerApp, self).get_default_config()
+
+        config.update({
+            'url': 'https://api.uat.netuitive.com/ingest/infrastructure',
+            'api_key': 'apikey',
+            'tags': None,
+            'relations': None,
+            'location': None,
+            'batch': 100,
+            'max_backlog_multiplier': 5,
+            'trim_backlog_multiplier': 4,
+        })
+        return config
 
     def __del__(self):
         pass
